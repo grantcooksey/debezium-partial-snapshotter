@@ -1,0 +1,24 @@
+plugins {
+    // Apply the java-library plugin to add support for Java Library
+    id 'java-library'
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    // Dependent on what version of Kafka tha debezium uses. See debezium/pom.xml
+    implementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
+
+    implementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
+
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+
+    // Dependent on what version of Kafka tha debezium uses. See debezium/pom.xml
+    testImplementation group: 'org.apache.kafka', name: 'connect-api', version: '2.4.0'
+
+    testImplementation group: 'io.debezium', name: 'debezium-embedded', version: '1.1.0.Final'
+    testImplementation group: 'io.debezium', name: 'debezium-api', version: '1.1.0.Final'
+
+}
