@@ -21,7 +21,7 @@ public class PartialSnapshotter extends ExportedSnapshotter {
     @Override
     public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
         FilterHandler handler = new JdbcFilterHandler(config);
-        this.filter = new SnapshotFilter(handler);
+        this.filter = new SnapshotFilter(handler, config);
     }
 
     @Override

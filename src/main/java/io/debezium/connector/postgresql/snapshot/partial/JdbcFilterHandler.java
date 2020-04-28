@@ -7,7 +7,6 @@ public class JdbcFilterHandler implements FilterHandler {
     String jdbcConnection;
 
     public JdbcFilterHandler(PostgresConnectorConfig config) {
-        // TODO
         this.jdbcConnection = "Connection";
     }
 
