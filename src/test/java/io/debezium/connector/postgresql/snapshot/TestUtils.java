@@ -4,7 +4,6 @@ import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
-import junit.framework.Test;
 import org.junit.Assert;
 
 import javax.management.InstanceNotFoundException;
@@ -46,6 +45,10 @@ public class TestUtils {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void waitForMBeanToUnregister() {
+        // if a test crashes
     }
 
     public static void waitForStreamingRunning(String connector, String server) throws InterruptedException {
@@ -94,6 +97,10 @@ public class TestUtils {
             }
             metronome.pause();
         }
+    }
+
+    public static String topicName(String dbObjectName) {
+        return TestPostgresConnectorConfig.TEST_SERVER + "." + dbObjectName;
     }
 
 }

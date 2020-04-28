@@ -28,7 +28,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-abstract class AbstractTestEmbeddedEngine {
+abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractTestEmbeddedEngine.class);
 
@@ -117,7 +117,8 @@ abstract class AbstractTestEmbeddedEngine {
         Files.createDirectory(storageSource);
     }
 
-
-
-
+    @Override
+    public void close() throws Exception {
+        stop();
+    }
 }

@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecord> {
 
@@ -42,6 +44,12 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
         }
     }
 
+    public List<SourceRecord> get(int n) {
+        return IntStream.range(0, n)
+                .mapToObj(this::pollDataTopic)
+                .collect(Collectors.toList());
+    }
+
     public SourceRecord pollDataTopic() {
         return pollDataTopic(TestUtils.MAX_TEST_DURATION_SEC);
     }
@@ -55,5 +63,9 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
         }
 
         return null;
+    }
+
+    public boolean isEmpty() {
+        return dataTopic.isEmpty();
     }
 }
