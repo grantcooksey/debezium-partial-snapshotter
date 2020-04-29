@@ -10,6 +10,7 @@ public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
     public static final String DATABASE_CONFIG_PREFIX = "database.";
     public static final String TEST_SERVER = "test_server";
     public static final String TEST_DATABASE = "postgres";
+    public static final String SNAPSHOT_TRACKER_TABLE = "public.snapshot_tracker";
 
     public TestPostgresConnectorConfig(Configuration config) {
         super(config);
@@ -36,7 +37,8 @@ public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
                 .with(PostgresConnectorConfig.SSL_MODE, PostgresConnectorConfig.SecureConnectionMode.DISABLED)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.CUSTOM)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, PartialSnapshotter.class.getName());
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, PartialSnapshotter.class.getName())
+                .with(PostgresConnectorConfig.TABLE_BLACKLIST, SNAPSHOT_TRACKER_TABLE);
 
         return builder;
     }

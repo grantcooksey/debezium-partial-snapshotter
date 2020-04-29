@@ -3,9 +3,7 @@ package io.debezium.connector.postgresql.snapshot;
 import io.debezium.config.Configuration;
 import io.debezium.embedded.Connect;
 import io.debezium.embedded.EmbeddedEngine;
-import io.debezium.embedded.StopConnectorException;
 import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.StopEngineException;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.history.FileDatabaseHistory;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
@@ -20,12 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 abstract class AbstractTestEmbeddedEngine implements AutoCloseable {

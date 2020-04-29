@@ -2,7 +2,7 @@ package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.StopEngineException;
-import junit.framework.Test;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +12,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
 
 public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecord> {
 
@@ -65,7 +67,18 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
         return null;
     }
 
-    public boolean isEmpty() {
-        return dataTopic.isEmpty();
+    public boolean isEmptyForSnapshot() {
+        if (dataTopic.isEmpty()) {
+            return true;
+        }
+
+        SourceRecord record =  pollDataTopic(1);
+        if (record == null) {
+            return true;
+        }
+
+        String snapshotStatus = ((Struct) record.value()).getStruct("source").getString("snapshot");
+
+        return snapshotStatus == null || snapshotStatus.equals("false");
     }
 }

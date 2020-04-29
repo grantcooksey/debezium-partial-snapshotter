@@ -3,15 +3,19 @@ plugins {
     id 'java-library'
 }
 
+test {
+    testLogging.showStandardStreams = false
+}
+
 repositories {
     jcenter()
 }
 
 dependencies {
     // Dependent on what version of Kafka tha debezium uses. See debezium/pom.xml
-    implementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
+    compileOnly group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
 
-    implementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
+    compileOnly group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
 
     testImplementation group: 'junit', name: 'junit', version: '4.12'
 
@@ -20,5 +24,8 @@ dependencies {
 
     testImplementation group: 'io.debezium', name: 'debezium-embedded', version: '1.1.0.Final'
     testImplementation group: 'io.debezium', name: 'debezium-api', version: '1.1.0.Final'
+    testImplementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
 
+    testImplementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
+    testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
 }

@@ -47,10 +47,6 @@ public class TestUtils {
         }
     }
 
-    public static void waitForMBeanToUnregister() {
-        // if a test crashes
-    }
-
     public static void waitForStreamingRunning(String connector, String server) throws InterruptedException {
         ObjectName mBean;
         try {

@@ -28,18 +28,23 @@ public class SnapshotFilterManager implements Runnable {
     @Override
     public void run() {
         jmxSnapshotMonitor.waitForSnapshotToStart();
-        while (isSnapshotRunning()) {
-            SnapshotFilterMessage message = pollForRequest();
+        try {
+            while (isSnapshotRunning()) {
+                SnapshotFilterMessage message = pollForRequest();
 
-            if (message != null) {
-                boolean response = filterHandler.shouldSnapshot(message.tableId);
-                try {
-                    message.responseQueue.put(response);
-                }
-                catch (InterruptedException e) {
-                    LOGGER.error("Partial snapshotter response timed out.", e);
+                if (message != null) {
+                    boolean response = filterHandler.shouldSnapshot(message.tableId);
+                    try {
+                        message.responseQueue.put(response);
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Partial snapshotter response timed out.", e);
+                    }
                 }
             }
+            filterHandler.snapshotCompleted();
+        }
+        finally {
+            filterHandler.cleanUp();
         }
 
         LOGGER.info("Shutting down snapshot filter thread");

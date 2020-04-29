@@ -3,6 +3,8 @@ package io.debezium.connector.postgresql.snapshot;
 import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.hamcrest.core.AnyOf;
+import org.hamcrest.core.StringContains;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,6 +26,10 @@ public class PartialSnapshotterTest {
     private static final String CREATE_TEST_DATA_TABLES =
             "create table test_data (id integer not null constraint table_name_pk primary key, name text);" +
             "create table another_test_data (id integer not null constraint another_table_name_pk primary key, name text);";
+    private static final String CREATE_SNAPSHOT_TABLE = "create table public.snapshot_tracker (" +
+            "collection_name text constraint snapshot_tracker_pk primary key," +
+            "needs_snapshot boolean not null," +
+            "under_snapshot boolean not null );";
 
     @Before
     public void before() {
@@ -47,8 +53,8 @@ public class PartialSnapshotterTest {
             addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
 
             List<SourceRecord> records = consumer.get(1);
-            verifyRecordValues(expectedRecords, records);
-            assertTrue(consumer.isEmpty());
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
         }
     }
 
@@ -56,7 +62,10 @@ public class PartialSnapshotterTest {
     public void testFilterOneTablePartialSnapshot() throws Exception {
         TestUtils.execute(CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
-                "insert into another_test_data (id, name) VALUES (1, 'dirt');");
+                "insert into another_test_data (id, name) VALUES (1, 'dirt');",
+                CREATE_SNAPSHOT_TABLE,
+                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
+        );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
@@ -65,8 +74,8 @@ public class PartialSnapshotterTest {
             addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
 
             List<SourceRecord> records = consumer.get(1);
-            verifyRecordValues(expectedRecords, records);
-            assertTrue(consumer.isEmpty());
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
         }
     }
 
@@ -74,12 +83,16 @@ public class PartialSnapshotterTest {
     public void testFilterAllTablesPartialSnapshot() throws Exception {
         TestUtils.execute(CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
-                "insert into another_test_data (id, name) VALUES (1, 'dirt');");
+                "insert into another_test_data (id, name) VALUES (1, 'dirt');",
+                CREATE_SNAPSHOT_TABLE,
+                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.test_data', false, false);",
+                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
+        );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
 
-            assertTrue(consumer.isEmpty());
+            assertTrue(consumer.isEmptyForSnapshot());
         }
     }
 
@@ -97,8 +110,8 @@ public class PartialSnapshotterTest {
             addExpectedRecord(expectedRecords, "public.another_test_data", Arrays.asList("id", 1, "name", "dirt"));
 
             List<SourceRecord> records = consumer.get(2);
-            verifyRecordValues(expectedRecords, records);
-            assertTrue(consumer.isEmpty());
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
         }
     }
 
@@ -115,12 +128,18 @@ public class PartialSnapshotterTest {
         TestUtils.waitForSnapshotToBeCompleted("postgres", TestPostgresConnectorConfig.TEST_SERVER);
     }
 
-    private void verifyRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records) {
+    private void verifySnapshotRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records) {
         for (SourceRecord record : records) {
             Map<String, Object> rowData = expectedRecords.remove(record.topic());
             assertNotNull(rowData);
             for (Map.Entry<String, Object> column : rowData.entrySet()) {
-                assertEquals(((Struct) record.value()).getStruct("after").get(column.getKey()), column.getValue());
+                assertEquals(column.getValue(), ((Struct) record.value()).getStruct("after").get(column.getKey()));
+                assertThat(((Struct) record.value()).getStruct("source").getString("snapshot"),
+                        AnyOf.anyOf(
+                                StringContains.containsString("true"),
+                                StringContains.containsString("last")
+                        )
+                );
             }
         }
         assertEquals(0, expectedRecords.size());
