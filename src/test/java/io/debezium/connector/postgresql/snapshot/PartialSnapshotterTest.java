@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
-public class PartialSnapshotterTest {
+public class PartialSnapshotterTest extends BaseTest {
 
     private static final String CLEAN_UP_SCHEMA = "DROP SCHEMA IF EXISTS public CASCADE;" +
         "CREATE SCHEMA public;";
@@ -33,18 +33,18 @@ public class PartialSnapshotterTest {
 
     @Before
     public void before() {
-        TestUtils.execute(CLEAN_UP_SCHEMA);
+        TestUtils.execute(postgreSQLContainer, CLEAN_UP_SCHEMA);
     }
 
     @After
     public void after() {
-        TestUtils.execute(CLEAN_UP_SCHEMA);
+        TestUtils.execute(postgreSQLContainer, CLEAN_UP_SCHEMA);
     }
 
     @Test
     public void testEngine() throws Exception {
-        TestUtils.execute(CREATE_TEST_DATA_TABLES, "insert into test_data (id, name) VALUES (1, 'joe');");
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES, "insert into test_data (id, name) VALUES (1, 'joe');");
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
             engine.start(consumer);
             waitForSnapshotToBeCompleted();
@@ -60,13 +60,13 @@ public class PartialSnapshotterTest {
 
     @Test
     public void testFilterOneTablePartialSnapshot() throws Exception {
-        TestUtils.execute(CREATE_TEST_DATA_TABLES,
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
                 "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
         );
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
 
@@ -81,14 +81,14 @@ public class PartialSnapshotterTest {
 
     @Test
     public void testFilterAllTablesPartialSnapshot() throws Exception {
-        TestUtils.execute(CREATE_TEST_DATA_TABLES,
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
                 "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.test_data', false, false);",
                 "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
         );
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
 
@@ -98,10 +98,10 @@ public class PartialSnapshotterTest {
 
     @Test
     public void testFilterNoTablesPartialSnapshot() throws Exception {
-        TestUtils.execute(CREATE_TEST_DATA_TABLES,
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');");
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine()) {
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
 

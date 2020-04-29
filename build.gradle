@@ -28,4 +28,6 @@ dependencies {
 
     testImplementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
+
+    testImplementation group: 'org.testcontainers', name: 'postgresql', version: '1.14.1'
 }

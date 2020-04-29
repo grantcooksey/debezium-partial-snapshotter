@@ -5,6 +5,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import org.junit.Assert;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServer;
@@ -18,11 +19,11 @@ public class TestUtils {
 
     public static final int MAX_TEST_DURATION_SEC = 60;
 
-    public static PostgresConnection createConnection() {
-        return new PostgresConnection(TestPostgresConnectorConfig.defaultJdbcConfig());
+    public static PostgresConnection createConnection(PostgreSQLContainer postgreSQLContainer) {
+        return new PostgresConnection(TestPostgresConnectorConfig.defaultJdbcConfig(postgreSQLContainer));
     }
 
-    public static void execute(String statement, String... furtherStatements) {
+    public static void execute(PostgreSQLContainer postgreSQLContainer, String statement, String... furtherStatements) {
         if (furtherStatements != null) {
             StringBuilder statementBuilder = new StringBuilder(statement);
             for (String further : furtherStatements) {
@@ -31,7 +32,7 @@ public class TestUtils {
             statement = statementBuilder.toString();
         }
 
-        try (PostgresConnection connection = createConnection()) {
+        try (PostgresConnection connection = createConnection(postgreSQLContainer)) {
             connection.setAutoCommit(false);
             connection.executeWithoutCommitting(statement);
             Connection jdbcConn = connection.connection();

@@ -4,6 +4,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.snapshot.PartialSnapshotter;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
 
@@ -16,18 +17,18 @@ public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
         super(config);
     }
 
-    public static JdbcConfiguration defaultJdbcConfig() {
+    public static JdbcConfiguration defaultJdbcConfig(PostgreSQLContainer postgreSQLContainer) {
         return JdbcConfiguration.copy(Configuration.fromSystemProperties(DATABASE_CONFIG_PREFIX))
                 .withDefault(JdbcConfiguration.DATABASE, TEST_DATABASE)
                 .withDefault(JdbcConfiguration.HOSTNAME, "localhost")
-                .withDefault(JdbcConfiguration.PORT, 5432)
-                .withDefault(JdbcConfiguration.USER, "postgres")
-                .withDefault(JdbcConfiguration.PASSWORD, "postgres")
+                .withDefault(JdbcConfiguration.PORT, postgreSQLContainer.getMappedPort(5432))
+                .withDefault(JdbcConfiguration.USER, postgreSQLContainer.getUsername())
+                .withDefault(JdbcConfiguration.PASSWORD, postgreSQLContainer.getPassword())
                 .build();
     }
 
-    public static Configuration.Builder defaultConfig() {
-        JdbcConfiguration jdbcConfiguration = defaultJdbcConfig();
+    public static Configuration.Builder defaultConfig(PostgreSQLContainer postgreSQLContainer) {
+        JdbcConfiguration jdbcConfiguration = defaultJdbcConfig(postgreSQLContainer);
         Configuration.Builder builder = Configuration.create();
         jdbcConfiguration.forEach((field, value) -> builder.with(DATABASE_CONFIG_PREFIX + field, value));
         builder.with(RelationalDatabaseConnectorConfig.SERVER_NAME, TEST_SERVER)
