@@ -1,6 +1,7 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
+import io.debezium.connector.postgresql.connection.PostgresConnection;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.hamcrest.core.AnyOf;
@@ -9,6 +10,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,7 +47,8 @@ public class PartialSnapshotterTest extends BaseTest {
 
     @Test
     public void testEngine() throws Exception {
-        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES, "insert into test_data (id, name) VALUES (1, 'joe');");
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');");
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
             engine.start(consumer);
@@ -112,6 +117,58 @@ public class PartialSnapshotterTest extends BaseTest {
             List<SourceRecord> records = consumer.get(2);
             verifySnapshotRecordValues(expectedRecords, records);
             assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
+    @Test
+    public void testResnapshotPartial() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');",
+                "insert into another_test_data (id, name) VALUES (1, 'dirt');");
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+
+            Map<String, Map<String, Object>> expectedRecords = new HashMap<>();
+            addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+            addExpectedRecord(expectedRecords, "public.another_test_data", Arrays.asList("id", 1, "name", "dirt"));
+
+            List<SourceRecord> records = consumer.get(2);
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+
+        TestUtils.execute(postgreSQLContainer,
+                "update snapshot_tracker set needs_snapshot=true where collection_name like 'public.test_data';");
+        // Restart the connector
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+
+            Map<String, Map<String, Object>> expectedRecords = new HashMap<>();
+            addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+
+            List<SourceRecord> records = consumer.get(1);
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
+    @Test
+    public void testCompletedSnapshotUnlocksInTracker() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');");
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+            runSnapshot(engine, new ChangeConsumer());
+        }
+
+        try (PostgresConnection postgresConnection = TestUtils.createConnection(postgreSQLContainer);
+             Statement statement = postgresConnection.connection().createStatement();
+             ResultSet rs = statement.executeQuery("select needs_snapshot, under_snapshot from snapshot_tracker;")) {
+            while  (rs.next()) {
+                assertFalse(rs.getBoolean("needs_snapshot"));
+                assertFalse(rs.getBoolean("under_snapshot"));
+            }
         }
     }
 
