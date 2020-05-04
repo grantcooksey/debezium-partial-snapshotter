@@ -124,7 +124,9 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
     @Override
     public void cleanUp() {
         try {
-            jdbcConnection.close();
+            if (jdbcConnection != null) {
+                jdbcConnection.close();
+            }
         }
         catch (SQLException e) {
             LOGGER.error("Failed to close jdbc connection from partial snapshot thread", e);

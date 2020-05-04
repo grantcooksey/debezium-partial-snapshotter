@@ -172,6 +172,15 @@ public class PartialSnapshotterTest extends BaseTest {
         }
     }
 
+    @Test
+    public void testSnapshotEmptyDB() throws Exception {
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
     private void runSnapshot(TestPostgresEmbeddedEngine engine, ChangeConsumer consumer) throws InterruptedException {
         engine.start(consumer);
         waitForSnapshotToBeCompleted();
