@@ -1,0 +1,17 @@
+{
+    "name": "local-testing-partial-snapshot-connector",
+    "config": {
+	"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+	"database.hostname": "localhost", 
+	"database.port": "5432", 
+	"database.user": "postgres", 
+	"database.password": "postgres", 
+	"database.dbname" : "postgres", 
+	"database.server.name": "test",
+	"plugin.name": "pgoutput",
+	"slot.drop.on.stop": "true",
+	"table.blacklist": "public.snapshot_tracker",
+	"snapshot.mode": "custom",
+	"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
+    }
+}
