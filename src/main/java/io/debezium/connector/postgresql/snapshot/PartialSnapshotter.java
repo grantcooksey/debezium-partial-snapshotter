@@ -2,6 +2,7 @@ package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.snapshot.partial.FilterHandler;
+import io.debezium.connector.postgresql.snapshot.partial.PartialSnapshotConfig;
 import io.debezium.connector.postgresql.snapshot.partial.PostgresJdbcFilterHandler;
 import io.debezium.connector.postgresql.snapshot.partial.SnapshotFilter;
 import io.debezium.connector.postgresql.spi.OffsetState;
@@ -20,7 +21,8 @@ public class PartialSnapshotter extends ExportedSnapshotter {
 
     @Override
     public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
-        FilterHandler handler = new PostgresJdbcFilterHandler(config);
+        PartialSnapshotConfig partialSnapshotConfig = new PartialSnapshotConfig(config.getConfig());
+        FilterHandler handler = new PostgresJdbcFilterHandler(config, partialSnapshotConfig);
         this.filter = new SnapshotFilter(handler, config);
     }
 

@@ -16,32 +16,32 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresJdbcFilterHandler.class);
 
-    private static final String TABLE_NAME = "snapshot_tracker";
-    private static final String SCHEMA = "public";
-    private static final String CREATE_SNAPSHOT_TABLE = "create table " + qualifiedTableName() +" (" +
-            "collection_name text constraint " + TABLE_NAME +"_pk primary key," +
+    private static final String CREATE_SNAPSHOT_TABLE = "create table \"%s\".\"%s\" (" +
+            "collection_name text constraint \"%s\" primary key," +
             "needs_snapshot boolean not null," +
             "under_snapshot boolean not null );";
     private static final String CHECK_IF_SNAPSHOT_TABLE_EXISTS = "select to_regclass::text as oid from to_regclass(?);";
     private static final String CHECK_FOR_NEEDS_SNAPSHOT = "select collection_name, needs_snapshot, under_snapshot " +
-            "from " + qualifiedTableName() +" " +
+            "from \"%s\".\"%s\" " +
             "where collection_name like ?";
-    private static final String MARK_COLLECTION_FOR_SNAPSHOT = "update " + qualifiedTableName() +" " +
+    private static final String MARK_COLLECTION_FOR_SNAPSHOT = "update \"%s\".\"%s\" " +
             "set under_snapshot=true " +
             "where collection_name like ?;";
-    private static final String INSERT_TRACKER_ROW = "insert into " + qualifiedTableName() +" " +
+    private static final String INSERT_TRACKER_ROW = "insert into \"%s\".\"%s\" " +
         "(collection_name, needs_snapshot, under_snapshot) values (?, true, true)";
-    private static final String SNAPSHOT_COMPLETED = "update " + qualifiedTableName() +" " +
+    private static final String SNAPSHOT_COMPLETED = "update \"%s\".\"%s\" " +
             "set needs_snapshot=false, under_snapshot=false " +
             "where under_snapshot=true;";
 
 
     private JdbcConnection jdbcConnection;
-    private final PostgresConnectorConfig config;
+    private final PostgresConnectorConfig postgresConnectorConfig;
+    private final PartialSnapshotConfig partialSnapshotConfig;
     private boolean snapshotTrackerTableExists;
 
-    public PostgresJdbcFilterHandler(PostgresConnectorConfig config) {
-        this.config = config;
+    public PostgresJdbcFilterHandler(PostgresConnectorConfig postgresConnectorConfig, PartialSnapshotConfig partialSnapshotConfig) {
+        this.postgresConnectorConfig = postgresConnectorConfig;
+        this.partialSnapshotConfig = partialSnapshotConfig;
         this.snapshotTrackerTableExists = false;
     }
 
@@ -50,7 +50,7 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         try {
             Connection connection;
             if (jdbcConnection == null) {
-                jdbcConnection = new PostgresConnection(config.jdbcConfig());
+                jdbcConnection = new PostgresConnection(postgresConnectorConfig.jdbcConfig());
                 connection = jdbcConnection.connection();
                 createTable(connection);
             } else {
@@ -60,9 +60,24 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
             connection.setAutoCommit(false);
 
             boolean needsSnapshot = false;
-            try (PreparedStatement queryRow = connection.prepareStatement(CHECK_FOR_NEEDS_SNAPSHOT);
-                 PreparedStatement insertTrackerRow = connection.prepareStatement(INSERT_TRACKER_ROW);
-                 PreparedStatement markRowForSnapshot = connection.prepareStatement(MARK_COLLECTION_FOR_SNAPSHOT)) {
+            String checkForNeedsSnapshotQuery = buildQueryString(
+                    CHECK_FOR_NEEDS_SNAPSHOT,
+                    partialSnapshotConfig.getTackerTableSchemaName(),
+                    partialSnapshotConfig.getTrackerTableName()
+            );
+            String insertTrackerRowQuery = buildQueryString(
+                    INSERT_TRACKER_ROW,
+                    partialSnapshotConfig.getTackerTableSchemaName(),
+                    partialSnapshotConfig.getTrackerTableName()
+            );
+            String markCollectionForSnapshotQuery = buildQueryString(
+                    MARK_COLLECTION_FOR_SNAPSHOT,
+                    partialSnapshotConfig.getTackerTableSchemaName(),
+                    partialSnapshotConfig.getTrackerTableName()
+            );
+            try (PreparedStatement queryRow = connection.prepareStatement(checkForNeedsSnapshotQuery);
+                 PreparedStatement insertTrackerRow = connection.prepareStatement(insertTrackerRowQuery);
+                 PreparedStatement markRowForSnapshot = connection.prepareStatement(markCollectionForSnapshotQuery)) {
                 queryRow.setString(1, tableId.identifier());
 
                 String collectionName = null;
@@ -110,12 +125,17 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         if (jdbcConnection != null) {
             try {
                 Connection connection = jdbcConnection.connection();
-                try (PreparedStatement completeSnapshotUpdate = connection.prepareStatement(SNAPSHOT_COMPLETED)) {
+                String snapshotCompleteQuery = buildQueryString(
+                        SNAPSHOT_COMPLETED,
+                        partialSnapshotConfig.getTackerTableSchemaName(),
+                        partialSnapshotConfig.getTrackerTableName()
+                );
+                try (PreparedStatement completeSnapshotUpdate = connection.prepareStatement(snapshotCompleteQuery)) {
                     completeSnapshotUpdate.executeUpdate();
                 }
             }
             catch (SQLException e) {
-                LOGGER.error("Failed to unlock snapshot tracker rows in table: {}", qualifiedTableName());
+                LOGGER.error("Failed to unlock snapshot tracker rows in table: {}", partialSnapshotConfig.getTrackerTableName());
             }
         }
     }
@@ -136,9 +156,15 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
     private void createTable(Connection connection) throws SQLException {
         if (!snapshotTrackerTableExists) {
             connection.setAutoCommit(false);
+            String createTableQuery = buildQueryString(
+                    CREATE_SNAPSHOT_TABLE,
+                    partialSnapshotConfig.getTackerTableSchemaName(),
+                    partialSnapshotConfig.getTrackerTableName(),
+                    partialSnapshotConfig.getTrackerTablePrimaryKeyName()
+            );
             try (PreparedStatement checkForTable = connection.prepareStatement(CHECK_IF_SNAPSHOT_TABLE_EXISTS);
-                 PreparedStatement createTable = connection.prepareStatement(CREATE_SNAPSHOT_TABLE)) {
-                checkForTable.setString(1, qualifiedTableName());
+                 PreparedStatement createTable = connection.prepareStatement(createTableQuery)) {
+                checkForTable.setString(1, partialSnapshotConfig.getTrackerTableName());
                 try (ResultSet rs = checkForTable.executeQuery()) {
                     rs.next();
                     if (rs.getString("oid") == null) {
@@ -153,7 +179,7 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         }
     }
 
-    private static String qualifiedTableName() {
-        return SCHEMA + "." + TABLE_NAME;
+    private String buildQueryString(String query, String... args) {
+        return String.format(query, (Object[]) args);
     }
 }

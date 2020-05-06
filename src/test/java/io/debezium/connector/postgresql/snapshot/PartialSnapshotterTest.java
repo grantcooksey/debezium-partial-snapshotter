@@ -1,5 +1,6 @@
 package io.debezium.connector.postgresql.snapshot;
 
+import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import org.apache.kafka.connect.data.Struct;
@@ -10,7 +11,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Arrays;
@@ -26,7 +26,8 @@ import static org.junit.Assert.*;
 public class PartialSnapshotterTest extends BaseTest {
 
     private static final String CLEAN_UP_SCHEMA = "DROP SCHEMA IF EXISTS public CASCADE;" +
-        "CREATE SCHEMA public;";
+            "DROP SCHEMA IF EXISTS snapshot CASCADE;" +
+            "CREATE SCHEMA public;";
     private static final String CREATE_TEST_DATA_TABLES =
             "create table test_data (id integer not null constraint table_name_pk primary key, name text);" +
             "create table another_test_data (id integer not null constraint another_table_name_pk primary key, name text);";
@@ -165,7 +166,7 @@ public class PartialSnapshotterTest extends BaseTest {
         try (PostgresConnection postgresConnection = TestUtils.createConnection(postgreSQLContainer);
              Statement statement = postgresConnection.connection().createStatement();
              ResultSet rs = statement.executeQuery("select needs_snapshot, under_snapshot from snapshot_tracker;")) {
-            while  (rs.next()) {
+            while (rs.next()) {
                 assertFalse(rs.getBoolean("needs_snapshot"));
                 assertFalse(rs.getBoolean("under_snapshot"));
             }
@@ -178,6 +179,42 @@ public class PartialSnapshotterTest extends BaseTest {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
             assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
+    @Test
+    public void testCustomSnapshotTrackerTableName() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');",
+                "CREATE SCHEMA snapshot;");
+        Map<String, Object> snapshotTrackerConfigs = new HashMap<>();
+        snapshotTrackerConfigs.put("snapshot.partial.table.name", "snapshot.custom_tracker");
+        snapshotTrackerConfigs.put("snapshot.partial.pk.name", "pk_a_different_key_name");
+        Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, snapshotTrackerConfigs);
+
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+
+            Map<String, Map<String, Object>> expectedRecords = new HashMap<>();
+            addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+
+            List<SourceRecord> records = consumer.get(1);
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+
+        try (PostgresConnection postgresConnection = TestUtils.createConnection(postgreSQLContainer);
+             Statement statement = postgresConnection.connection().createStatement();
+             ResultSet rs = statement.executeQuery("select collection_name from snapshot.custom_tracker;")) {
+            while (rs.next()) {
+                assertThat(rs.getString("collection_name"),
+                        AnyOf.anyOf(
+                                StringContains.containsString("public.test_data"),
+                                StringContains.containsString("public.another_test_data")
+                        )
+                );
+            }
         }
     }
 

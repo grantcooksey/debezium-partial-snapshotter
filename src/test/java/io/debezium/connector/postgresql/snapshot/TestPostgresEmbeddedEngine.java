@@ -20,6 +20,10 @@ public class TestPostgresEmbeddedEngine extends AbstractTestEmbeddedEngine {
         this.config = new TestPostgresConnectorConfig(TestPostgresConnectorConfig.defaultConfig(postgreSQLContainer).build()).getConfig();
     }
 
+    public TestPostgresEmbeddedEngine(Configuration.Builder configBuilder) {
+        this.config = new TestPostgresConnectorConfig(configBuilder.build()).getConfig();
+    }
+
     @Override
     public Class<? extends SourceConnector> getConnectorClass() {
         return PostgresConnector.class;

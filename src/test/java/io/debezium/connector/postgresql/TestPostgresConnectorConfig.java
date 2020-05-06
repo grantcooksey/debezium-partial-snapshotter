@@ -1,10 +1,13 @@
 package io.debezium.connector.postgresql;
 
 import io.debezium.config.Configuration;
+import io.debezium.config.Field;
 import io.debezium.connector.postgresql.snapshot.PartialSnapshotter;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import org.testcontainers.containers.PostgreSQLContainer;
+
+import java.util.Map;
 
 public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
 
@@ -41,6 +44,12 @@ public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, PartialSnapshotter.class.getName())
                 .with(PostgresConnectorConfig.TABLE_BLACKLIST, SNAPSHOT_TRACKER_TABLE);
 
+        return builder;
+    }
+
+    public static Configuration.Builder customConfig(PostgreSQLContainer postgreSQLContainer, Map<String, Object> extraParams) {
+        Configuration.Builder builder = defaultConfig(postgreSQLContainer);
+        extraParams.forEach((name, value) -> builder.with(name, value));
         return builder;
     }
 }
