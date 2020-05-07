@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
     public List<SourceRecord> get(int n) {
         return IntStream.range(0, n)
                 .mapToObj(this::pollDataTopic)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 

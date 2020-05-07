@@ -1,6 +1,7 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.config.Configuration;
+import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import io.debezium.embedded.Connect;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
@@ -114,6 +115,8 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        LOGGER.info("Received request to close engine");
         stop();
+        TestUtils.waitForJMXToDeregister("postgres", TestPostgresConnectorConfig.TEST_SERVER);
     }
 }

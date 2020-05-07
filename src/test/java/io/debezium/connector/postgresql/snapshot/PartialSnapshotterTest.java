@@ -32,9 +32,11 @@ public class PartialSnapshotterTest extends BaseTest {
             "create table test_data (id integer not null constraint table_name_pk primary key, name text);" +
             "create table another_test_data (id integer not null constraint another_table_name_pk primary key, name text);";
     private static final String CREATE_SNAPSHOT_TABLE = "create table public.snapshot_tracker (" +
-            "collection_name text constraint snapshot_tracker_pk primary key," +
-            "needs_snapshot boolean not null," +
-            "under_snapshot boolean not null );";
+            "collection_name text not null, " +
+            "server_name text not null, " +
+            "needs_snapshot boolean not null, " +
+            "under_snapshot boolean not null, " +
+            "constraint snapshot_tracker_pk primary key (collection_name, server_name));";
 
     @Before
     public void before() {
@@ -70,7 +72,8 @@ public class PartialSnapshotterTest extends BaseTest {
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
-                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
+                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                        "('public.another_test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);"
         );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
@@ -91,8 +94,10 @@ public class PartialSnapshotterTest extends BaseTest {
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
-                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.test_data', false, false);",
-                "insert into snapshot_tracker (collection_name, needs_snapshot, under_snapshot) values ('public.another_test_data', false, false);"
+                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                        "('public.test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);",
+                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                        "('public.another_test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);"
         );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
@@ -221,10 +226,6 @@ public class PartialSnapshotterTest extends BaseTest {
     private void runSnapshot(TestPostgresEmbeddedEngine engine, ChangeConsumer consumer) throws InterruptedException {
         engine.start(consumer);
         waitForSnapshotToBeCompleted();
-    }
-
-    private void waitForStreamingRunning() throws InterruptedException {
-        TestUtils.waitForStreamingRunning("postgres", TestPostgresConnectorConfig.TEST_SERVER);
     }
 
     private void waitForSnapshotToBeCompleted() throws InterruptedException {

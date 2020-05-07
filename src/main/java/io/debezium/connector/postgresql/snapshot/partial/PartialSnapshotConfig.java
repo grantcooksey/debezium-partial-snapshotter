@@ -44,7 +44,7 @@ public class PartialSnapshotConfig {
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
             .withDescription("Name of primary key for the snapshot tracker table.")
-            .withDefault("pk_snapshot_tracker");
+            .withDefault("snapshot_tracker_pk");
 
     private String[] split(String dbObjectName) {
         return dbObjectName.split("\\.", 2);

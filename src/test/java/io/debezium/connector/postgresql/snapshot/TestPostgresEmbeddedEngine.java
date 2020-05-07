@@ -8,8 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-import java.util.function.Function;
-
 public class TestPostgresEmbeddedEngine extends AbstractTestEmbeddedEngine {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TestPostgresEmbeddedEngine.class);

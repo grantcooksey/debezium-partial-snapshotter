@@ -5,6 +5,8 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import javax.management.InstanceNotFoundException;
@@ -16,6 +18,8 @@ import java.sql.Connection;
 import java.time.Duration;
 
 public class TestUtils {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TestUtils.class);
 
     public static final int MAX_TEST_DURATION_SEC = 60;
 
@@ -48,25 +52,19 @@ public class TestUtils {
         }
     }
 
-    public static void waitForStreamingRunning(String connector, String server) throws InterruptedException {
-        ObjectName mBean;
-        try {
-            mBean = new ObjectName("debezium." + connector + ":type=connector-metrics,context=streaming,server=" + server);
+    public static void waitForJMXToDeregister(String connector, String server) throws InterruptedException {
+        ObjectName mbean = getJMXSnapshotObjectName(connector, server);
+        final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
+        final Metronome metronome = Metronome.sleeper(Duration.ofSeconds(1), Clock.system());
+
+        while (mbeanServer.isRegistered(mbean)) {
+            LOGGER.warn("Metrics not yet de-registered, waiting...");
+            metronome.pause();
         }
-        catch (MalformedObjectNameException e) {
-            throw new IllegalStateException(e);
-        }
-        pollForJmxMetric(mBean, "Connected");
     }
 
     public static void waitForSnapshotToBeCompleted(String connector, String server) throws InterruptedException {
-        ObjectName mbean;
-        try {
-            mbean = new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server);
-        }
-        catch (MalformedObjectNameException e) {
-            throw new IllegalStateException(e);
-        }
+        ObjectName mbean = getJMXSnapshotObjectName(connector, server);
         pollForJmxMetric(mbean, "SnapshotCompleted");
     }
 
@@ -87,7 +85,7 @@ public class TestUtils {
                 }
             }
             catch (InstanceNotFoundException e) {
-                System.out.println("Metrics not yet started");
+                LOGGER.warn("Metrics not yet started");
             }
             catch (Exception e) {
                 throw new IllegalStateException(e);
@@ -98,6 +96,17 @@ public class TestUtils {
 
     public static String topicName(String dbObjectName) {
         return TestPostgresConnectorConfig.TEST_SERVER + "." + dbObjectName;
+    }
+
+    private static ObjectName getJMXSnapshotObjectName(String connector, String server) {
+        ObjectName mbean;
+        try {
+            mbean = new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server);
+        }
+        catch (MalformedObjectNameException e) {
+            throw new IllegalStateException(e);
+        }
+        return mbean;
     }
 
 }
