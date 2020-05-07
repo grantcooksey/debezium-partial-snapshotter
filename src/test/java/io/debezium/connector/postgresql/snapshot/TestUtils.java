@@ -94,8 +94,8 @@ public class TestUtils {
         }
     }
 
-    public static String topicName(String dbObjectName) {
-        return TestPostgresConnectorConfig.TEST_SERVER + "." + dbObjectName;
+    public static String topicName(String serverName, String dbObjectName) {
+        return serverName + "." + dbObjectName;
     }
 
     private static ObjectName getJMXSnapshotObjectName(String connector, String server) {

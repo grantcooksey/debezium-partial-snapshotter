@@ -1,9 +1,14 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.config.Configuration;
+import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
+import io.debezium.embedded.EmbeddedEngine;
+import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.history.FileDatabaseHistory;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.hamcrest.core.AnyOf;
 import org.hamcrest.core.StringContains;
@@ -11,6 +16,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.file.Paths;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Arrays;
@@ -223,6 +229,48 @@ public class PartialSnapshotterTest extends BaseTest {
         }
     }
 
+    @Test
+    public void testMultipleConnectorsSnapshot() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');");
+
+        // Use custom configs to prevent conflicts with the running engine
+        Map<String, Object> secondEngineConfigs = new HashMap<>();
+        secondEngineConfigs.put(PostgresConnectorConfig.SLOT_NAME.name(), "second_debezium");
+        secondEngineConfigs.put(RelationalDatabaseConnectorConfig.SERVER_NAME.name(), "second_server");
+        secondEngineConfigs.put(EmbeddedEngine.ENGINE_NAME.name(), "another-test-connector");
+        secondEngineConfigs.put(StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG,
+                Paths.get(AbstractTestEmbeddedEngine.DATA_DIR, "second-file-connector-offsets.txt").toAbsolutePath());
+        secondEngineConfigs.put(FileDatabaseHistory.FILE_PATH.name(),
+                Paths.get(AbstractTestEmbeddedEngine.DATA_DIR, "second-file-db-history.txt").toAbsolutePath());
+        Configuration.Builder secondEngineConfigBuilder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, secondEngineConfigs);
+
+        try (TestPostgresEmbeddedEngine firstEngine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+            ChangeConsumer firstConsumer = new ChangeConsumer();
+            ChangeConsumer secondConsumer = new ChangeConsumer();
+
+            runSnapshot(firstEngine, firstConsumer);
+
+            try (TestPostgresEmbeddedEngine secondEngine = new TestPostgresEmbeddedEngine(secondEngineConfigBuilder)) {
+                secondEngine.start(secondConsumer, false);
+                TestUtils.waitForSnapshotToBeCompleted("postgres", (String) secondEngineConfigs.get("database.server.name"));
+            }
+
+            Map<String, Map<String, Object>> expectedRecords = new HashMap<>();
+            addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+            List<SourceRecord> records = firstConsumer.get(1);
+            verifySnapshotRecordValues(expectedRecords, records);
+            assertTrue(firstConsumer.isEmptyForSnapshot());
+
+            Map<String, Map<String, Object>> secondExpectedRecords = new HashMap<>();
+            addExpectedRecord(secondExpectedRecords, "public.test_data",
+                    Arrays.asList("id", 1, "name", "joe"), "second_server");
+            List<SourceRecord> secondConnectorRecords = secondConsumer.get(1);
+            verifySnapshotRecordValues(secondExpectedRecords, secondConnectorRecords);
+            assertTrue(secondConsumer.isEmptyForSnapshot());
+        }
+    }
+
     private void runSnapshot(TestPostgresEmbeddedEngine engine, ChangeConsumer consumer) throws InterruptedException {
         engine.start(consumer);
         waitForSnapshotToBeCompleted();
@@ -250,6 +298,10 @@ public class PartialSnapshotterTest extends BaseTest {
     }
 
     private void addExpectedRecord(Map<String, Map<String, Object>> records, String dbObjectName, List<Object> data) {
+        addExpectedRecord(records, dbObjectName, data, TestPostgresConnectorConfig.TEST_SERVER);
+    }
+
+    private void addExpectedRecord(Map<String, Map<String, Object>> records, String dbObjectName, List<Object> data, String serverName) {
         assertEquals(0, data.size() % 2);
         Collection<List<Object>> chunked = splitIntoChunks(data);
 
@@ -261,7 +313,7 @@ public class PartialSnapshotterTest extends BaseTest {
             record.put(key, value);
         }
 
-        records.put(TestUtils.topicName(dbObjectName), record);
+        records.put(TestUtils.topicName(serverName, dbObjectName), record);
     }
 
     private Collection<List<Object>> splitIntoChunks(List<Object> data) {

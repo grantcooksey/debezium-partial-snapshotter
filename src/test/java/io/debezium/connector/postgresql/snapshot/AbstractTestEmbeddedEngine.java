@@ -6,6 +6,7 @@ import io.debezium.embedded.Connect;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
+import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.history.FileDatabaseHistory;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.source.SourceConnector;
@@ -28,7 +29,7 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractTestEmbeddedEngine.class);
 
-    private static final String DATA_DIR = "build/data";
+    public static final String DATA_DIR = "build/data";
     private static final String DATA_OFFSET_FILE = "file-connector-offsets.txt";
     private static final String DATA_DB_HISTORY_FILE = "file-db-history.txt";
 
@@ -40,9 +41,13 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     public abstract Configuration getConfiguration();
 
     public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer) {
+        start(changeConsumer, false);
+    }
+
+    public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer, boolean shouldResetStorage) {
         LOGGER.info("Starting debezium engine");
         try {
-            init(getConnectorClass(), getConfiguration(), changeConsumer);
+            init(getConnectorClass(), getConfiguration(), changeConsumer, shouldResetStorage);
         }
         catch (IOException e) {
             LOGGER.error("Failed to start the engine", e);
@@ -70,17 +75,20 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     }
 
     public void init(Class<? extends SourceConnector> connectorClass, Configuration connectorConfig,
-                     DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer) throws IOException {
-        resetLocalStorage();
+                     DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer, boolean shouldResetStorage) throws IOException {
+        if (shouldResetStorage) {
+            resetLocalStorage();
+        }
 
-        Configuration config = Configuration.copy(connectorConfig)
+        Configuration.Builder builder = Configuration.create()
                 .with(EmbeddedEngine.ENGINE_NAME, "test-connector")
                 .with(EmbeddedEngine.CONNECTOR_CLASS, connectorClass.getName())
                 .with(StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, getStorageFile(DATA_OFFSET_FILE))
                 .with(EmbeddedEngine.OFFSET_FLUSH_INTERVAL_MS, 0)
                 .with(HistorizedRelationalDatabaseConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class.getName())
-                .with(FileDatabaseHistory.FILE_PATH, getStorageFile(DATA_DB_HISTORY_FILE))
-                .build();
+                .with(FileDatabaseHistory.FILE_PATH, getStorageFile(DATA_DB_HISTORY_FILE));
+        connectorConfig.forEach(builder::with);
+        Configuration config = builder.build();
 
         final Properties connectorProps = config.asProperties();
 
@@ -117,6 +125,6 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     public void close() throws Exception {
         LOGGER.info("Received request to close engine");
         stop();
-        TestUtils.waitForJMXToDeregister("postgres", TestPostgresConnectorConfig.TEST_SERVER);
+        TestUtils.waitForJMXToDeregister("postgres", getConfiguration().getString(RelationalDatabaseConnectorConfig.SERVER_NAME));
     }
 }
