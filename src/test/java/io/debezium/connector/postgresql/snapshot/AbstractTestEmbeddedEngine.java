@@ -41,7 +41,7 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     public abstract Configuration getConfiguration();
 
     public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer) {
-        start(changeConsumer, false);
+        start(changeConsumer, true);
     }
 
     public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer, boolean shouldResetStorage) {
