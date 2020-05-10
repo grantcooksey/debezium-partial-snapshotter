@@ -10,10 +10,12 @@ public class PartialSnapshotConfig {
 
     private final String trackerTableName;
     private final String trackerTablePrimaryKeyName;
+    private final boolean shouldSkipSnapshotForExistingConnector;
 
     public PartialSnapshotConfig(Configuration configuration) {
         this.trackerTableName = configuration.getString(SNAPSHOT_TRACKER_TABLE_NAME);
         this.trackerTablePrimaryKeyName = configuration.getString(SNAPSHOT_TRACKER_PRIMARY_KEY_NAME);
+        this.shouldSkipSnapshotForExistingConnector = configuration.getBoolean(SKIP_SNAPSHOT_FOR_EXISTING_CONNECTOR);
     }
 
     public String getTrackerTableName() {
@@ -28,6 +30,10 @@ public class PartialSnapshotConfig {
 
     public String getTrackerTablePrimaryKeyName() {
         return trackerTablePrimaryKeyName;
+    }
+
+    public boolean shouldSkipSnapshotForExistingConnector() {
+        return shouldSkipSnapshotForExistingConnector;
     }
 
     public static final Field SNAPSHOT_TRACKER_TABLE_NAME = Field.create("snapshot.partial.table.name")
@@ -45,6 +51,16 @@ public class PartialSnapshotConfig {
             .withImportance(ConfigDef.Importance.LOW)
             .withDescription("Name of primary key for the snapshot tracker table.")
             .withDefault("snapshot_tracker_pk");
+
+    public static final Field SKIP_SNAPSHOT_FOR_EXISTING_CONNECTOR = Field.create("snapshot.partial.skip.existing.connector")
+            .withDisplayName("Partial snapshotter skips snapshot for existing connector.")
+            .withType(ConfigDef.Type.BOOLEAN)
+            .withWidth(ConfigDef.Width.SHORT)
+            .withImportance(ConfigDef.Importance.MEDIUM)
+            .withDescription("If the partial snapshotter plugin is added to an existing connector, this flag will skip " +
+                    "performing a snapshot and instead only create the snapshot tracker table. Assumes the current " +
+                    "whitelist/blacklist is monitoring at least one table.")
+            .withDefault("false");
 
     private String[] split(String dbObjectName) {
         return dbObjectName.split("\\.", 2);

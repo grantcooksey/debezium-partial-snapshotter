@@ -30,21 +30,26 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
             "set under_snapshot=true " +
             "where table_name like ? and server_name like ?;";
     private static final String INSERT_TRACKER_ROW = "insert into \"%s\".\"%s\" " +
-        "(table_name, server_name, needs_snapshot, under_snapshot) values (?, ?, true, true)";
+        "(table_name, server_name, needs_snapshot, under_snapshot) values (?, ?, ?, ?)";
     private static final String SNAPSHOT_COMPLETED = "update \"%s\".\"%s\" " +
             "set needs_snapshot=false, under_snapshot=false " +
             "where under_snapshot=true and server_name like ?;";
+    private static final String CHECK_FOR_EXISTING_CONNECTOR = "select count(server_name) " +
+            "from \"%s\".\"%s\" " +
+            "where server_name like ?;";
 
 
     private JdbcConnection jdbcConnection;
     private final PostgresConnectorConfig postgresConnectorConfig;
     private final PartialSnapshotConfig partialSnapshotConfig;
     private boolean snapshotTrackerTableExists;
+    private boolean recordOnlySnapshot;
 
     public PostgresJdbcFilterHandler(PostgresConnectorConfig postgresConnectorConfig, PartialSnapshotConfig partialSnapshotConfig) {
         this.postgresConnectorConfig = postgresConnectorConfig;
         this.partialSnapshotConfig = partialSnapshotConfig;
         this.snapshotTrackerTableExists = false;
+        this.recordOnlySnapshot = false;
     }
 
     @Override
@@ -54,7 +59,11 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
             if (jdbcConnection == null) {
                 jdbcConnection = new PostgresConnection(postgresConnectorConfig.jdbcConfig());
                 connection = jdbcConnection.connection();
-                createTable(connection);
+                boolean tableWasCreated = createTable(connection);
+                if (partialSnapshotConfig.shouldSkipSnapshotForExistingConnector() &&
+                        (tableWasCreated || connectorIsNotAlreadyTracked(connection, postgresConnectorConfig.getLogicalName()))) {
+                    recordOnlySnapshot = true;
+                }
             } else {
                 connection = jdbcConnection.connection();
             }
@@ -96,14 +105,23 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
                 if (tableName == null) {
                     insertTrackerRow.setString(1, tableId.identifier());
                     insertTrackerRow.setString(2, postgresConnectorConfig.getLogicalName());
+                    if (recordOnlySnapshot) {
+                        insertTrackerRow.setBoolean(3, false);
+                        insertTrackerRow.setBoolean(4, false);
+                    }
+                    else {
+                        insertTrackerRow.setBoolean(3, true);
+                        insertTrackerRow.setBoolean(4, true);
+                    }
+
                     int rows = insertTrackerRow.executeUpdate();
                     if (rows != 1) {
                         throw new SQLException("Inserted too many rows for collection {}", tableId.identifier());
                     }
-                    needsSnapshot = true;
+                    needsSnapshot = !recordOnlySnapshot;
                 }
 
-                if (needsSnapshot && !underSnapshot) {
+                if (!recordOnlySnapshot && needsSnapshot && !underSnapshot) {
                     markRowForSnapshot.setString(1, tableId.identifier());
                     markRowForSnapshot.setString(2, postgresConnectorConfig.getLogicalName());
                     int rows = markRowForSnapshot.executeUpdate();
@@ -117,12 +135,32 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
                 connection.setAutoCommit(true);
             }
 
-            return needsSnapshot;
+            return !recordOnlySnapshot && needsSnapshot;
         }
         catch (SQLException e) {
             LOGGER.error("Failed to determine if table needs snapshot", e);
             return false;
         }
+    }
+
+    private boolean connectorIsNotAlreadyTracked(Connection connection, String serverName) {
+        String checkForExistingConnectorQuery = buildQueryString(
+                CHECK_FOR_EXISTING_CONNECTOR,
+                partialSnapshotConfig.getTackerTableSchemaName(),
+                partialSnapshotConfig.getTrackerTableName()
+        );
+        try (PreparedStatement checkForExistingConnector = connection.prepareStatement(checkForExistingConnectorQuery)) {
+            checkForExistingConnector.setString(1, serverName);
+            try (ResultSet rs = checkForExistingConnector.executeQuery()) {
+                rs.next();
+                return rs.getInt("count") == 0;
+            }
+        }
+        catch (SQLException e) {
+            LOGGER.error("Failed to determine if the connector has been tracked before. Default to performing snapshot", e);
+        }
+
+        return false;
     }
 
     @Override
@@ -159,7 +197,8 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         }
     }
 
-    private void createTable(Connection connection) throws SQLException {
+    private boolean createTable(Connection connection) throws SQLException {
+        boolean tableWasCreated = false;
         if (!snapshotTrackerTableExists) {
             connection.setAutoCommit(false);
             String createTableQuery = buildQueryString(
@@ -175,6 +214,7 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
                     rs.next();
                     if (rs.getString("oid") == null) {
                         createTable.executeUpdate();
+                        tableWasCreated = true;
                     }
                 }
                 snapshotTrackerTableExists = true;
@@ -183,6 +223,8 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
                 connection.setAutoCommit(true);
             }
         }
+
+        return tableWasCreated;
     }
 
     private String buildQueryString(String query, String... args) {

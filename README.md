@@ -25,6 +25,7 @@ Property							| Default	| Description
 ----- 								| ----- 	| ----
 snapshot.partial.table.name	| public.snapshot_tracker | Name of table used to track snapshot status for each table.
 snapshot.partial.pk.name		| snapshot\_tracker_pk | Name of primary key for the snapshot tracker table.
+snapshot.partial.skip.existing.connector | false | If the partial snapshotter plugin is added to an existing connector, this flag will skip performing a snapshot and instead only create the snapshot tracker table. Assumes the current whitelist/blacklist is monitoring at least one table.
 
 The postgres role that Debezium uses must have create table pri
 
@@ -34,18 +35,18 @@ Example connector configuration:
 {
     "name": "local-testing-partial-snapshot-connector",
     "config": {
-	"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-	"database.hostname": "localhost", 
-	"database.port": "5432", 
-	"database.user": "postgres", 
-	"database.password": "postgres", 
-	"database.dbname" : "postgres", 
-	"database.server.name": "test",
-	"plugin.name": "pgoutput",
-	"slot.drop.on.stop": "false",
-	"table.blacklist": "public.snapshot_tracker",
-	"snapshot.mode": "custom",
-	"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
+		"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+		"database.hostname": "localhost", 
+		"database.port": "5432", 
+		"database.user": "postgres", 
+		"database.password": "postgres", 
+		"database.dbname" : "postgres", 
+		"database.server.name": "test",
+		"plugin.name": "pgoutput",
+		"slot.drop.on.stop": "false",
+		"table.blacklist": "public.snapshot_tracker",
+		"snapshot.mode": "custom",
+		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
     }
 }
 ```
@@ -95,29 +96,29 @@ For all examples, we assume we are running the connector on Kafka Connect and ar
 {
     "name": "test-connector",
     "config": {
-	"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-	"database.hostname": "localhost", 
-	"database.port": "5432", 
-	"database.user": "postgres", 
-	"database.password": "postgres", 
-	"database.dbname" : "postgres", 
-	"database.server.name": "test",
-	"plugin.name": "pgoutput",
-	"slot.drop.on.stop": "false",
-	"table.blacklist": "public.snapshot_tracker",
-	"snapshot.mode": "custom",
-	"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
+		"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+		"database.hostname": "localhost", 
+		"database.port": "5432", 
+		"database.user": "postgres", 
+		"database.password": "postgres", 
+		"database.dbname" : "postgres", 
+		"database.server.name": "test",
+		"plugin.name": "pgoutput",
+		"slot.drop.on.stop": "false",
+		"table.blacklist": "public.snapshot_tracker",
+		"snapshot.mode": "custom",
+		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
     }
 }
 ```
 
-#### New Connector - Snapshot Everything
+#### Snapshot Everything For A New Connector 
 
 `POST` the connector to connect and once the snapshot is complete, view that snapshot tracker table exists and all `needs_snapshot` columns are `false`.
 
-#### Existing Connector - Resnapshot One Table
+#### Resnapshot One Table For An Existing Connector
 
-Lets say we want to resnapshot the table `my_table`. `DELETE` the existing connector from the connect cluster. Once the connector is stopped, execute
+Lets say we want to resnapshot the table `my_table` for a connector that has already been using the connector. `DELETE` the existing connector from the connect cluster. Once the connector is stopped, execute
 
 ```
 update public.snapshot_tracker
@@ -127,3 +128,34 @@ where table_name like 'my_table'
 ```
 
 Restart the connector by `POST`ing the config back to the cluster. Once the snapshot is complete, verify that all the `needs_snapshot` columns are `false`.
+
+#### Adding Partial Snapshot Plugin To An Existing Connector Without Performing Full Snapshot
+
+When adding the partial snapshot plugin for an existing connector, it might be desirable to skip performing a snapshot of the entire database just to add the plugin. We can skip the snapshot and onyl create the snapshot tracker table by using the `snapshot.partial.skip.existing.connector` property. 
+
+`DELETE` the existing connector from the connect cluster and modify the connector config to add the `snapshot.partial.skip.existing.connector = true` property. The new config should look like
+
+```
+{
+    "name": "test-connector",
+    "config": {
+		"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+		"database.hostname": "localhost", 
+		"database.port": "5432", 
+		"database.user": "postgres", 
+		"database.password": "postgres", 
+		"database.dbname" : "postgres", 
+		"database.server.name": "test",
+		"plugin.name": "pgoutput",
+		"slot.drop.on.stop": "false",
+		"table.blacklist": "public.snapshot_tracker",
+		"snapshot.mode": "custom",
+		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter",
+		"snapshot.partial.skip.existing.connector": "true"
+    }
+}
+```
+
+Restart the connector by `POST`ing the config back to the cluster. The snapshot will skip but the snapshot tracker table will have been created if it does not yet exist and all the `needs_snapshot` columns for the monitored tables will be `false`.
+
+

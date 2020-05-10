@@ -271,6 +271,56 @@ public class PartialSnapshotterTest extends BaseTest {
         }
     }
 
+    @Test
+    public void testSkippedSnapshotExistingConnectorRestart() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');");
+        Map<String, Object> skipSnapshotConfigs = new HashMap<>();
+        skipSnapshotConfigs.put("snapshot.partial.skip.existing.connector", "true");
+        Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, skipSnapshotConfigs);
+
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
+    @Test
+    public void testSkipSnapshotForExistingConnector() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');");
+        Map<String, Object> skipSnapshotConfigs = new HashMap<>();
+        skipSnapshotConfigs.put("snapshot.partial.skip.existing.connector", "true");
+        Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, skipSnapshotConfigs);
+
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+
+            assertTrue(consumer.isEmptyForSnapshot());
+        }
+
+        try (PostgresConnection postgresConnection = TestUtils.createConnection(postgreSQLContainer);
+             Statement statement = postgresConnection.connection().createStatement();
+             ResultSet rs = statement.executeQuery("select table_name from snapshot_tracker;")) {
+            while (rs.next()) {
+                assertThat(rs.getString("table_name"),
+                        AnyOf.anyOf(
+                                StringContains.containsString("public.test_data"),
+                                StringContains.containsString("public.another_test_data")
+                        )
+                );
+            }
+        }
+    }
+
     private void runSnapshot(TestPostgresEmbeddedEngine engine, ChangeConsumer consumer) throws InterruptedException {
         engine.start(consumer);
         waitForSnapshotToBeCompleted();
