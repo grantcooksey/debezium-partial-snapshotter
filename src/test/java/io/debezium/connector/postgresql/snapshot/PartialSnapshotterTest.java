@@ -38,11 +38,11 @@ public class PartialSnapshotterTest extends BaseTest {
             "create table test_data (id integer not null constraint table_name_pk primary key, name text);" +
             "create table another_test_data (id integer not null constraint another_table_name_pk primary key, name text);";
     private static final String CREATE_SNAPSHOT_TABLE = "create table public.snapshot_tracker (" +
-            "collection_name text not null, " +
+            "table_name text not null, " +
             "server_name text not null, " +
             "needs_snapshot boolean not null, " +
             "under_snapshot boolean not null, " +
-            "constraint snapshot_tracker_pk primary key (collection_name, server_name));";
+            "constraint snapshot_tracker_pk primary key (table_name, server_name));";
 
     @Before
     public void before() {
@@ -78,7 +78,7 @@ public class PartialSnapshotterTest extends BaseTest {
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
-                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                "insert into snapshot_tracker (table_name, server_name, needs_snapshot, under_snapshot) values " +
                         "('public.another_test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);"
         );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
@@ -100,9 +100,9 @@ public class PartialSnapshotterTest extends BaseTest {
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');",
                 CREATE_SNAPSHOT_TABLE,
-                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                "insert into snapshot_tracker (table_name, server_name, needs_snapshot, under_snapshot) values " +
                         "('public.test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);",
-                "insert into snapshot_tracker (collection_name, server_name, needs_snapshot, under_snapshot) values " +
+                "insert into snapshot_tracker (table_name, server_name, needs_snapshot, under_snapshot) values " +
                         "('public.another_test_data', '" + TestPostgresConnectorConfig.TEST_SERVER + "', false, false);"
         );
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
@@ -151,7 +151,7 @@ public class PartialSnapshotterTest extends BaseTest {
         }
 
         TestUtils.execute(postgreSQLContainer,
-                "update snapshot_tracker set needs_snapshot=true where collection_name like 'public.test_data';");
+                "update snapshot_tracker set needs_snapshot=true where table_name like 'public.test_data';");
         // Restart the connector
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
             ChangeConsumer consumer = new ChangeConsumer();
@@ -217,9 +217,9 @@ public class PartialSnapshotterTest extends BaseTest {
 
         try (PostgresConnection postgresConnection = TestUtils.createConnection(postgreSQLContainer);
              Statement statement = postgresConnection.connection().createStatement();
-             ResultSet rs = statement.executeQuery("select collection_name from snapshot.custom_tracker;")) {
+             ResultSet rs = statement.executeQuery("select table_name from snapshot.custom_tracker;")) {
             while (rs.next()) {
-                assertThat(rs.getString("collection_name"),
+                assertThat(rs.getString("table_name"),
                         AnyOf.anyOf(
                                 StringContains.containsString("public.test_data"),
                                 StringContains.containsString("public.another_test_data")

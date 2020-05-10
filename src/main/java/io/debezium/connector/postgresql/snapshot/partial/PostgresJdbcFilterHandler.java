@@ -17,20 +17,20 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresJdbcFilterHandler.class);
 
     private static final String CREATE_SNAPSHOT_TABLE = "create table \"%s\".\"%s\" (" +
-            "collection_name text not null, " +
+            "table_name text not null, " +
             "server_name text not null, " +
             "needs_snapshot boolean not null, " +
             "under_snapshot boolean not null, " +
-            "constraint \"%s\" primary key (collection_name, server_name));";
+            "constraint \"%s\" primary key (table_name, server_name));";
     private static final String CHECK_IF_SNAPSHOT_TABLE_EXISTS = "select to_regclass::text as oid from to_regclass(?);";
-    private static final String CHECK_FOR_NEEDS_SNAPSHOT = "select collection_name, needs_snapshot, under_snapshot " +
+    private static final String CHECK_FOR_NEEDS_SNAPSHOT = "select table_name, needs_snapshot, under_snapshot " +
             "from \"%s\".\"%s\" " +
-            "where collection_name like ? and server_name like ?";
+            "where table_name like ? and server_name like ?";
     private static final String MARK_COLLECTION_FOR_SNAPSHOT = "update \"%s\".\"%s\" " +
             "set under_snapshot=true " +
-            "where collection_name like ? and server_name like ?;";
+            "where table_name like ? and server_name like ?;";
     private static final String INSERT_TRACKER_ROW = "insert into \"%s\".\"%s\" " +
-        "(collection_name, server_name, needs_snapshot, under_snapshot) values (?, ?, true, true)";
+        "(table_name, server_name, needs_snapshot, under_snapshot) values (?, ?, true, true)";
     private static final String SNAPSHOT_COMPLETED = "update \"%s\".\"%s\" " +
             "set needs_snapshot=false, under_snapshot=false " +
             "where under_snapshot=true and server_name like ?;";
@@ -83,17 +83,17 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
                 queryRow.setString(1, tableId.identifier());
                 queryRow.setString(2, postgresConnectorConfig.getLogicalName());
 
-                String collectionName = null;
+                String tableName = null;
                 boolean underSnapshot = false;
                 try (ResultSet rs = queryRow.executeQuery()) {
                     if (rs.next()) {
-                        collectionName = rs.getString("collection_name");
+                        tableName = rs.getString("table_name");
                         needsSnapshot = rs.getBoolean("needs_snapshot");
                         underSnapshot = rs.getBoolean("under_snapshot");
                     }
                 }
 
-                if (collectionName == null) {
+                if (tableName == null) {
                     insertTrackerRow.setString(1, tableId.identifier());
                     insertTrackerRow.setString(2, postgresConnectorConfig.getLogicalName());
                     int rows = insertTrackerRow.executeUpdate();
