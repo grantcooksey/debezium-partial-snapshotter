@@ -19,12 +19,14 @@ To use the partial snapshotter the following properties must be set:
 "snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
 ```
 
-The following configs have been added in addition to the Debezium configuration options.
+The following configuration options are available in addition to what Debezium provides.
 
 Property							| Default	| Description
 ----- 								| ----- 	| ----
 snapshot.partial.table.name	| public.snapshot_tracker | Name of table used to track snapshot status for each table.
 snapshot.partial.pk.name		| snapshot\_tracker_pk | Name of primary key for the snapshot tracker table.
+
+The postgres role that Debezium uses must have create table pri
 
 Example connector configuration:
 
@@ -40,13 +42,15 @@ Example connector configuration:
 	"database.dbname" : "postgres", 
 	"database.server.name": "test",
 	"plugin.name": "pgoutput",
-	"slot.drop.on.stop": "true",
+	"slot.drop.on.stop": "false",
 	"table.blacklist": "public.snapshot_tracker",
 	"snapshot.mode": "custom",
 	"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
     }
 }
 ```
+
+**Note:** it is _strongly_ recommended to use permanent replication slots in production, ie `slot.drop.on.stop` is `false`. The partial snapshotter cannot guarentee to prevent data loss if the replication slot is dropped and only a subset of tables are snapshot.
 
 ## Installation
 
@@ -56,21 +60,70 @@ Example connector configuration:
 
 ## Operation
 
-The partial snapshotter uses a table, aka the snapshot tracker table, on the source database to determine what tables need to be snapshot. This table uses the Debezium connector property `database.server.name` and the table name (including the schema) as a compound primary to identify snapshot table. This key allows storing multiple Debezium connector snapshot records in the same table.
+The partial snapshotter uses a table (the snapshot tracker table) on the source database to determine what needs to be snapshot. This table uses the Debezium connector property `database.server.name` and the table name (including the schema) as a compound primary key to identify snapshot table. This table schema allows storing multiple Debezium connector snapshot records in the same table.
 
-The snapshotter uses the postgres exported snapshot feature to take lockless snapshot and queries the table to determine what tables need a snapshot. The first time the partial snapshotter is started, it will create the snapshot tracker table and rows for every table that is snapshot. The `needs_snapshot` column controls determining which tables need a snapshot. This column should be manually updated to perform a snapshot. Kick off the snapshot by deleting and restarting the appropriate Debezium connector.
+The first time the partial snapshotter is started, it will create the snapshot tracker table and insert rows for each table that are snapshot. The `needs_snapshot` column controls determining which tables need a snapshot. The intent for this project is to manually update the `needs_snapshot` column for each table that a snapshot is desired. Although streaming will still pause during the snapshot phase, by only performing a snapshot on a subset of tables, the snapshot operation should be less expensive. Snapshots are kicked off by the connector by deleting and recreating the connector.
+
+The query to create the snapshot tracker table is:
+
+```
+create table public.snapshot_tracker
+(
+    table_name     text    not null,
+    server_name    text    not null,
+    needs_snapshot boolean not null,
+    under_snapshot boolean not null,
+    constraint snapshot_tracker_pk primary key (table_name, server_name)
+);
+```
+
+Both the snapshot tracker table name and primary key name are [configurable](#configuration).
+
+This table creation query can be used to precreate the table, with the consideration that the table name must match `snapshot.partial.table.name`.  This is helpful to set granular priviledges for the role that debezium uses without needing to alter default priviledges for a tightly scoped role for Debezium. If the table is precreated, the role will need insert and update priviledges on the snapshot tracker table and execute priviledge on the `to_regclass(text)` function. This function is used to determine the existance of the tracker table.
+
+
+
+The snapshotter uses the postgres exported snapshot feature to take a lockless snapshot and queries the table to determine what tables need a snapshot. 
+
+TODO: existing connectors snapshot.
 
 ### Common Scenarios
 
+For all examples, we assume we are running the connector on Kafka Connect and are using the following connector configuration:
+
+```
+{
+    "name": "test-connector",
+    "config": {
+	"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+	"database.hostname": "localhost", 
+	"database.port": "5432", 
+	"database.user": "postgres", 
+	"database.password": "postgres", 
+	"database.dbname" : "postgres", 
+	"database.server.name": "test",
+	"plugin.name": "pgoutput",
+	"slot.drop.on.stop": "false",
+	"table.blacklist": "public.snapshot_tracker",
+	"snapshot.mode": "custom",
+	"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
+    }
+}
+```
+
 #### New Connector - Snapshot Everything
 
-TODO
+`POST` the connector to connect and once the snapshot is complete view that snapshot tracker table exists and all `needs_snapshot` columns are `false`.
 
 #### Existing Connector - Resnapshot One Table
 
-TODO
+Lets say we want to resnapshot the table `my_table`. `DELETE` the existing connector from the connect cluster. Once the connector is stopped, execute
 
+```
+update public.snapshot_tracker
+set needs_snapshot = true
+where table_name like 'my_table'
+  and server_name like 'test';
+```
 
-TODO: How the connector tracks already snapshot tables  
-TODO: Structure of the tracker table   
-TODO: Example of skipping a snapshot
+Restart the connector by `POST`ing the config back to the cluster. Once the snapshot is complete, verify that all the `needs_snapshot` columns are `false`.
