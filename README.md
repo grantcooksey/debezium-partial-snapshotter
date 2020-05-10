@@ -113,7 +113,7 @@ For all examples, we assume we are running the connector on Kafka Connect and ar
 
 #### New Connector - Snapshot Everything
 
-`POST` the connector to connect and once the snapshot is complete view that snapshot tracker table exists and all `needs_snapshot` columns are `false`.
+`POST` the connector to connect and once the snapshot is complete, view that snapshot tracker table exists and all `needs_snapshot` columns are `false`.
 
 #### Existing Connector - Resnapshot One Table
 
