@@ -7,6 +7,10 @@ Problems with managing your evolving Debezium production data?  This plugin was 
 * Decide to add new tables to the whitelist after the initial snapshot but don't want to have to snapshot the entire database again? Avoid resnapshotting everything and skip all or selectively resnapshot a subset of tables.
 * A data migration was performed that breaks Avro schema migration compatibility and a snapshot is  needed for recovery? Once the Kafka topics and Schema Registry have been patched to handle the migration, resnapshot only the affected tables.
 
+## Status
+
+This project is currently under development and not currently ready for production!
+
 ## Requirements
 * Debezium >= 1.1
 
