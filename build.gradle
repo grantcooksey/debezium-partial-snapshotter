@@ -12,6 +12,7 @@ sourceCompatibility = '1.8'
 
 repositories {
     jcenter()
+    mavenLocal()
 }
 
 dependencies {
@@ -19,16 +20,24 @@ dependencies {
     compileOnly group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
     compileOnly group: 'org.apache.kafka', name: 'kafka_2.12', version: '2.4.0'
 
-    compileOnly group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
+    compileOnly group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.1.Final'
 
     testImplementation group: 'junit', name: 'junit', version: '4.12'
 
     // Dependent on what version of Kafka tha debezium uses. See debezium/pom.xml
     testImplementation group: 'org.apache.kafka', name: 'connect-api', version: '2.4.0'
 
-    testImplementation group: 'io.debezium', name: 'debezium-embedded', version: '1.1.0.Final'
-    testImplementation group: 'io.debezium', name: 'debezium-api', version: '1.1.0.Final'
-    testImplementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.0.Final'
+    if (project.hasProperty('useLocalSources')) {
+        println 'Using local sources for test build'
+        testImplementation group: 'io.debezium', name: 'debezium-api', version: '1.2.0-SNAPSHOT'
+        testImplementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.2.0-SNAPSHOT'
+        testImplementation group: 'io.debezium', name: 'debezium-embedded', version: '1.2.0-SNAPSHOT'
+    }
+    else {
+        testImplementation group: 'io.debezium', name: 'debezium-api', version: '1.1.1.Final'
+        testImplementation group: 'io.debezium', name: 'debezium-connector-postgres', version: '1.1.1.Final'
+        testImplementation group: 'io.debezium', name: 'debezium-embedded', version: '1.1.1.Final'
+    }
 
     testImplementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'

@@ -1,10 +1,11 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.TestPostgresConnectorConfig;
 import io.debezium.embedded.Connect;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.RecordChangeEvent;
+import io.debezium.engine.format.ChangeEventFormat;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.history.FileDatabaseHistory;
@@ -33,18 +34,18 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     private static final String DATA_OFFSET_FILE = "file-connector-offsets.txt";
     private static final String DATA_DB_HISTORY_FILE = "file-db-history.txt";
 
-    private DebeziumEngine<SourceRecord> engine;
+    private DebeziumEngine<RecordChangeEvent<SourceRecord>> engine;
     private ExecutorService executor;
 
     public abstract Class<? extends SourceConnector> getConnectorClass();
 
     public abstract Configuration getConfiguration();
 
-    public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer) {
+    public void start(DebeziumEngine.ChangeConsumer<RecordChangeEvent<SourceRecord>> changeConsumer) {
         start(changeConsumer, true);
     }
 
-    public void start(DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer, boolean shouldResetStorage) {
+    public void start(DebeziumEngine.ChangeConsumer<RecordChangeEvent<SourceRecord>> changeConsumer, boolean shouldResetStorage) {
         LOGGER.info("Starting debezium engine");
         try {
             init(getConnectorClass(), getConfiguration(), changeConsumer, shouldResetStorage);
@@ -75,7 +76,7 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
     }
 
     public void init(Class<? extends SourceConnector> connectorClass, Configuration connectorConfig,
-                     DebeziumEngine.ChangeConsumer<SourceRecord> changeConsumer, boolean shouldResetStorage) throws IOException {
+                     DebeziumEngine.ChangeConsumer<RecordChangeEvent<SourceRecord>> changeConsumer, boolean shouldResetStorage) throws IOException {
         if (shouldResetStorage) {
             resetLocalStorage();
         }
@@ -93,7 +94,7 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
         final Properties connectorProps = config.asProperties();
 
         // Create the engine with this configuration ...
-        this.engine = DebeziumEngine.create(Connect.class)
+        this.engine = DebeziumEngine.create(ChangeEventFormat.of(Connect.class))
                 .using(connectorProps)
                 .notifying(changeConsumer)
                 .build();
