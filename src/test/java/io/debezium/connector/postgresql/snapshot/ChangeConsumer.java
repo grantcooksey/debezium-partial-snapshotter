@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.junit.Assert.assertEquals;
 
 public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecord> {
 
@@ -70,7 +69,7 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
     }
 
     public boolean isEmptyForSnapshot() {
-        if (dataTopic.isEmpty()) {
+        if (isEmpty()) {
             return true;
         }
 
@@ -82,5 +81,9 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<SourceRecor
         String snapshotStatus = ((Struct) record.value()).getStruct("source").getString("snapshot");
 
         return snapshotStatus == null || snapshotStatus.equals("false");
+    }
+
+    public boolean isEmpty() {
+        return dataTopic.isEmpty();
     }
 }

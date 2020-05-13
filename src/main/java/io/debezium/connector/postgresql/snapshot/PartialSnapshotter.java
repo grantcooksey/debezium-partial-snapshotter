@@ -24,6 +24,7 @@ public class PartialSnapshotter extends ExportedSnapshotter {
         PartialSnapshotConfig partialSnapshotConfig = new PartialSnapshotConfig(config.getConfig());
         FilterHandler handler = new PostgresJdbcFilterHandler(config, partialSnapshotConfig);
         this.filter = new SnapshotFilter(handler, config);
+        super.init(config, sourceInfo, slotState);
     }
 
     @Override
@@ -35,5 +36,11 @@ public class PartialSnapshotter extends ExportedSnapshotter {
 
         LOGGER.info("Skipping snapshot for data collection {}", tableId);
         return Optional.empty();
+    }
+
+    @Override
+    public boolean shouldSnapshot() {
+        LOGGER.info("Performing Snapshot. Partial snapshotter will always attempt a snapshot.");
+        return true;
     }
 }

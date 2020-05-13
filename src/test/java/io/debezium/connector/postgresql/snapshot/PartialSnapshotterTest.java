@@ -34,6 +34,8 @@ public class PartialSnapshotterTest extends BaseTest {
     private static final String CLEAN_UP_SCHEMA = "DROP SCHEMA IF EXISTS public CASCADE;" +
             "DROP SCHEMA IF EXISTS snapshot CASCADE;" +
             "CREATE SCHEMA public;";
+    private static final String DROP_ALL_REPLICATION_SLOTS = "select pg_drop_replication_slot(slot_name) " +
+            "from pg_replication_slots;";
     private static final String CREATE_TEST_DATA_TABLES =
             "create table test_data (id integer not null constraint table_name_pk primary key, name text);" +
             "create table another_test_data (id integer not null constraint another_table_name_pk primary key, name text);";
@@ -51,7 +53,7 @@ public class PartialSnapshotterTest extends BaseTest {
 
     @After
     public void after() {
-        TestUtils.execute(postgreSQLContainer, CLEAN_UP_SCHEMA);
+        TestUtils.execute(postgreSQLContainer, CLEAN_UP_SCHEMA, DROP_ALL_REPLICATION_SLOTS);
     }
 
     @Test
@@ -137,7 +139,10 @@ public class PartialSnapshotterTest extends BaseTest {
         TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
                 "insert into another_test_data (id, name) VALUES (1, 'dirt');");
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+        Map<String, Object> configs = new HashMap<>();
+        configs.put("slot.drop.on.stop", "false");
+        Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, configs);
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
 
@@ -153,9 +158,10 @@ public class PartialSnapshotterTest extends BaseTest {
         TestUtils.execute(postgreSQLContainer,
                 "update snapshot_tracker set needs_snapshot=true where table_name like 'public.test_data';");
         // Restart the connector
-        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(postgreSQLContainer)) {
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
             ChangeConsumer consumer = new ChangeConsumer();
-            runSnapshot(engine, consumer);
+            engine.start(consumer, false);
+            waitForSnapshotToBeCompleted();
 
             Map<String, Map<String, Object>> expectedRecords = new HashMap<>();
             addExpectedRecord(expectedRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
@@ -163,6 +169,55 @@ public class PartialSnapshotterTest extends BaseTest {
             List<SourceRecord> records = consumer.get(1);
             verifySnapshotRecordValues(expectedRecords, records);
             assertTrue(consumer.isEmptyForSnapshot());
+        }
+    }
+
+    @Test
+    public void testReplayRecordsDuringResnapshot() throws Exception {
+        TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
+                "insert into test_data (id, name) VALUES (1, 'joe');",
+                "insert into another_test_data (id, name) VALUES (1, 'dirt');");
+        Map<String, Object> configs = new HashMap<>();
+        configs.put("slot.drop.on.stop", "false");
+        Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, configs);
+
+        // Take initial snapshot
+        ChangeConsumer cc = new ChangeConsumer();
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            runSnapshot(engine, cc);
+            TestUtils.execute(postgreSQLContainer,
+                    "insert into another_test_data (id, name) VALUES (2, 'ball');");
+            Thread.sleep(3000);
+            TestUtils.execute(postgreSQLContainer,
+                    "insert into another_test_data (id, name) VALUES (4, 'hey');");
+            Thread.sleep(3000);
+        }
+
+        TestUtils.execute(postgreSQLContainer,
+                "update snapshot_tracker set needs_snapshot=true where table_name like 'public.test_data';",
+                "insert into another_test_data (id, name) VALUES (3, 'dog');");
+        // Restart the connector
+        try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
+            ChangeConsumer consumer = new ChangeConsumer();
+            engine.start(consumer, false);
+            waitForSnapshotToBeCompleted();
+
+            Map<String, Map<String, Object>> expectedSnapshotRecords = new HashMap<>();
+            addExpectedRecord(expectedSnapshotRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+
+            List<SourceRecord> snapshotRecords = consumer.get(1);
+            verifySnapshotRecordValues(expectedSnapshotRecords, snapshotRecords);
+
+            // Since we are using an non-temp replication slot, streaming resumes from where the last connector stopped
+            // streaming. Any transactions committed between then and when the connector restarted could lead to
+            // duplicated messages for transactions writing the tables that need a snapshot.
+            Map<String, Map<String, Object>> expectedStreamingRecords = new HashMap<>();
+            addExpectedRecord(expectedStreamingRecords, "public.another_test_data", Arrays.asList("id", 3, "name", "dog"));
+
+            List<SourceRecord> streamingRecords = consumer.get(1);
+            verifyStreamingRecordValues(expectedStreamingRecords, streamingRecords);
+
+            assertTrue(consumer.isEmpty());
         }
     }
 
@@ -277,14 +332,17 @@ public class PartialSnapshotterTest extends BaseTest {
                 "insert into test_data (id, name) VALUES (1, 'joe');");
         Map<String, Object> skipSnapshotConfigs = new HashMap<>();
         skipSnapshotConfigs.put("snapshot.partial.skip.existing.connector", "true");
+        skipSnapshotConfigs.put("slot.drop.on.stop", "false");
         Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, skipSnapshotConfigs);
 
+        // Skip the snapshot for existing connector that is adding the partial snapshot plugin
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
             assertTrue(consumer.isEmptyForSnapshot());
         }
 
+        // Normal operation, snapshot records should exist in the table
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
             ChangeConsumer consumer = new ChangeConsumer();
             runSnapshot(engine, consumer);
@@ -331,17 +389,33 @@ public class PartialSnapshotterTest extends BaseTest {
     }
 
     private void verifySnapshotRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records) {
+        verifyRecordValues(expectedRecords, records, true);
+    }
+
+    private void verifyStreamingRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records) {
+        verifyRecordValues(expectedRecords, records, false);
+    }
+
+    private void verifyRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records, boolean isSnapshot) {
         for (SourceRecord record : records) {
             Map<String, Object> rowData = expectedRecords.remove(record.topic());
             assertNotNull(rowData);
             for (Map.Entry<String, Object> column : rowData.entrySet()) {
                 assertEquals(column.getValue(), ((Struct) record.value()).getStruct("after").get(column.getKey()));
-                assertThat(((Struct) record.value()).getStruct("source").getString("snapshot"),
-                        AnyOf.anyOf(
-                                StringContains.containsString("true"),
-                                StringContains.containsString("last")
-                        )
-                );
+                if (isSnapshot) {
+                    assertThat(((Struct) record.value()).getStruct("source").getString("snapshot"),
+                            AnyOf.anyOf(
+                                    StringContains.containsString("true"),
+                                    StringContains.containsString("last")
+                            )
+                    );
+                }
+                else {
+                    assertThat(
+                            ((Struct) record.value()).getStruct("source").getString("snapshot"),
+                            AnyOf.anyOf(StringContains.containsString("false"))
+                    );
+                }
             }
         }
         assertEquals(0, expectedRecords.size());
