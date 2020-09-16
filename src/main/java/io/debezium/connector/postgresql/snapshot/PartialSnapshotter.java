@@ -40,7 +40,12 @@ public class PartialSnapshotter extends ExportedSnapshotter {
 
     @Override
     public boolean shouldSnapshot() {
-        LOGGER.info("Performing Snapshot. Partial snapshotter will always attempt a snapshot.");
+        LOGGER.info("Performing snapshot. Partial snapshotter will always attempt a snapshot.");
         return true;
+    }
+
+    @Override
+    public boolean shouldStreamEventsStartingFromSnapshot() {
+        return false;
     }
 }

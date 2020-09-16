@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,7 +94,19 @@ abstract class AbstractTestEmbeddedEngine implements AutoCloseable {
 
         final Properties connectorProps = config.asProperties();
 
+
+        class Testy implements DebeziumEngine.ChangeConsumer<RecordChangeEvent<SourceRecord>> {
+            @Override
+            public void handleBatch(List<RecordChangeEvent<SourceRecord>> records, DebeziumEngine.RecordCommitter<RecordChangeEvent<SourceRecord>> committer) throws InterruptedException {
+
+            }
+        }
+
         // Create the engine with this configuration ...
+        DebeziumEngine.Builder<RecordChangeEvent<SourceRecord>> dbBuilder = DebeziumEngine.create(ChangeEventFormat.of(Connect.class));
+        DebeziumEngine.Builder<RecordChangeEvent<SourceRecord>> propBuilder = dbBuilder.using(connectorProps);
+        propBuilder.notifying(new Testy());
+
         this.engine = DebeziumEngine.create(ChangeEventFormat.of(Connect.class))
                 .using(connectorProps)
                 .notifying(changeConsumer)

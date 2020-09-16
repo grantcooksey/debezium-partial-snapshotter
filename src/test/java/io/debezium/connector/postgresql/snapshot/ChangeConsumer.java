@@ -1,6 +1,7 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.DebeziumEngine.RecordCommitter;
 import io.debezium.engine.RecordChangeEvent;
 import io.debezium.engine.StopEngineException;
 import org.apache.kafka.connect.data.Struct;
@@ -8,12 +9,10 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 
 public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<RecordChangeEvent<SourceRecord>> {
@@ -27,7 +26,7 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<RecordChang
     }
 
     @Override
-    public void handleBatch(List<RecordChangeEvent<SourceRecord>> records, DebeziumEngine.RecordCommitter<RecordChangeEvent<SourceRecord>> committer) throws InterruptedException {
+    public void handleBatch(List<RecordChangeEvent<SourceRecord>> records, RecordCommitter<RecordChangeEvent<SourceRecord>> committer) throws InterruptedException {
         try {
             for (RecordChangeEvent<SourceRecord> record : records) {
                 try {
@@ -48,10 +47,17 @@ public class ChangeConsumer implements DebeziumEngine.ChangeConsumer<RecordChang
     }
 
     public List<SourceRecord> get(int n) {
-        return IntStream.range(0, n)
-                .mapToObj(this::pollDataTopic)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        List<SourceRecord> records = new LinkedList<>();
+        for (int i = 0; i < n; i++) {
+            SourceRecord record = pollDataTopic();
+            if (record != null) {
+                records.add(record);
+            }
+            else {
+                LOGGER.warn("Consumer timed out!");
+            }
+        }
+        return records;
     }
 
     public SourceRecord pollDataTopic() {

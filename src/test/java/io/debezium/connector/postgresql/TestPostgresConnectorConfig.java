@@ -42,7 +42,7 @@ public class TestPostgresConnectorConfig extends PostgresConnectorConfig {
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.CUSTOM)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, PartialSnapshotter.class.getName())
-                .with(PostgresConnectorConfig.TABLE_BLACKLIST, SNAPSHOT_TRACKER_TABLE);
+                .with(PostgresConnectorConfig.TABLE_EXCLUDE_LIST, SNAPSHOT_TRACKER_TABLE);
 
         return builder;
     }

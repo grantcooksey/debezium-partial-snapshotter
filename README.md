@@ -12,7 +12,7 @@ Problems with managing your evolving Debezium production data?  This plugin was 
 This project is currently under development and not currently ready for production!
 
 ## Requirements
-* Debezium >= 1.1
+* Debezium >= 1.3
 
 ## Configuration
 

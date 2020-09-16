@@ -53,7 +53,7 @@ public class TestUtils {
     }
 
     public static void waitForJMXToDeregister(String connector, String server) throws InterruptedException {
-        ObjectName mbean = getJMXSnapshotObjectName(connector, server);
+        ObjectName mbean = getJMXSnapshotObjectName(connector, server, "snapshot");
         final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
         final Metronome metronome = Metronome.sleeper(Duration.ofSeconds(1), Clock.system());
 
@@ -64,8 +64,13 @@ public class TestUtils {
     }
 
     public static void waitForSnapshotToBeCompleted(String connector, String server) throws InterruptedException {
-        ObjectName mbean = getJMXSnapshotObjectName(connector, server);
+        ObjectName mbean = getJMXSnapshotObjectName(connector, server, "snapshot");
         pollForJmxMetric(mbean, "SnapshotCompleted");
+    }
+
+    public static void waitForStreamingToStart(String connector, String server) throws InterruptedException {
+        ObjectName mbean = getJMXSnapshotObjectName(connector, server, "streaming");
+        pollForJmxMetric(mbean, "Connected");
     }
 
     public static void pollForJmxMetric(ObjectName mbeanName, String attribute) throws InterruptedException {
@@ -98,10 +103,10 @@ public class TestUtils {
         return serverName + "." + dbObjectName;
     }
 
-    private static ObjectName getJMXSnapshotObjectName(String connector, String server) {
+    private static ObjectName getJMXSnapshotObjectName(String connector, String server, String context) {
         ObjectName mbean;
         try {
-            mbean = new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server);
+            mbean = new ObjectName("debezium." + connector + ":type=connector-metrics,context=" + context + ",server=" + server);
         }
         catch (MalformedObjectNameException e) {
             throw new IllegalStateException(e);

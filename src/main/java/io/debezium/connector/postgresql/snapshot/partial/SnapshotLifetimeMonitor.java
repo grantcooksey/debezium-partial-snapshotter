@@ -38,7 +38,7 @@ public class SnapshotLifetimeMonitor {
         int startupCounter = 0;
 
         while (!mbeanServer.isRegistered(objectName) && startupCounter < MAX_SEC_TO_WAIT_FOR_STARTUP) {
-            LOGGER.debug("mbean {} was not found too be registered. Retrying...", objectName);
+            LOGGER.debug("mbean {} is not registered. Retrying...", objectName);
             try {
                 Thread.sleep(ONE_SECOND_IN_MS);
             }

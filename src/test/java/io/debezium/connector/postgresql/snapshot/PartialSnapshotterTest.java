@@ -16,6 +16,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Paths;
 import java.sql.ResultSet;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.*;
 
 public class PartialSnapshotterTest extends BaseTest {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PartialSnapshotterTest.class);
 
     private static final String CLEAN_UP_SCHEMA = "DROP SCHEMA IF EXISTS public CASCADE;" +
             "DROP SCHEMA IF EXISTS snapshot CASCADE;" +
@@ -184,9 +188,23 @@ public class PartialSnapshotterTest extends BaseTest {
         Configuration.Builder builder = TestPostgresConnectorConfig.customConfig(postgreSQLContainer, configs);
 
         // Take initial snapshot
-        ChangeConsumer cc = new ChangeConsumer();
         try (TestPostgresEmbeddedEngine engine = new TestPostgresEmbeddedEngine(builder)) {
-            runSnapshot(engine, cc);
+            ChangeConsumer consumer = new ChangeConsumer();
+            runSnapshot(engine, consumer);
+
+            // insert a streaming record
+            TestUtils.execute(postgreSQLContainer,"insert into another_test_data (id, name) VALUES (2, 'cat');");
+
+            Map<String, Map<String, Object>> expectedSnapshotRecords = new HashMap<>();
+            addExpectedRecord(expectedSnapshotRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
+            addExpectedRecord(expectedSnapshotRecords, "public.another_test_data", Arrays.asList("id", 1, "name", "dirt"));
+            List<SourceRecord> snapshotRecords = consumer.get(2);
+            verifySnapshotRecordValues(expectedSnapshotRecords, snapshotRecords);
+
+            Map<String, Map<String, Object>> expectedStreamingRecords = new HashMap<>();
+            addExpectedRecord(expectedStreamingRecords, "public.another_test_data", Arrays.asList("id", 2, "name", "cat"));
+            List<SourceRecord> streamingRecords = consumer.get(1);
+            verifyStreamingRecordValues(expectedStreamingRecords, streamingRecords);
         }
 
         TestUtils.execute(postgreSQLContainer,
@@ -198,20 +216,20 @@ public class PartialSnapshotterTest extends BaseTest {
             engine.start(consumer, false);
             waitForSnapshotToBeCompleted();
 
+            // Since we are using an non-temp replication slot, catch up streaming is performed
+            Map<String, Map<String, Object>> expectedStreamingRecords = new HashMap<>();
+            addExpectedRecord(expectedStreamingRecords, "public.another_test_data", Arrays.asList("id", 3, "name", "dog"));
+
+            List<SourceRecord> streamingRecords = consumer.get(1);
+            verifyStreamingRecordValues(expectedStreamingRecords, streamingRecords);
+
             Map<String, Map<String, Object>> expectedSnapshotRecords = new HashMap<>();
             addExpectedRecord(expectedSnapshotRecords, "public.test_data", Arrays.asList("id", 1, "name", "joe"));
 
             List<SourceRecord> snapshotRecords = consumer.get(1);
             verifySnapshotRecordValues(expectedSnapshotRecords, snapshotRecords);
 
-            // Since we are using an non-temp replication slot, streaming resumes from where the last connector stopped
-            // streaming. Any transactions committed between then and when the connector restarted could lead to
-            // duplicated messages for transactions writing the tables that need a snapshot.
-            Map<String, Map<String, Object>> expectedStreamingRecords = new HashMap<>();
-            addExpectedRecord(expectedStreamingRecords, "public.another_test_data", Arrays.asList("id", 3, "name", "dog"));
-
-            List<SourceRecord> streamingRecords = consumer.get(1);
-            verifyStreamingRecordValues(expectedStreamingRecords, streamingRecords);
+            waitForStreamingToStart();
 
             assertTrue(consumer.isEmpty());
         }
@@ -384,6 +402,10 @@ public class PartialSnapshotterTest extends BaseTest {
         TestUtils.waitForSnapshotToBeCompleted("postgres", TestPostgresConnectorConfig.TEST_SERVER);
     }
 
+    private void waitForStreamingToStart() throws InterruptedException {
+        TestUtils.waitForStreamingToStart("postgres", TestPostgresConnectorConfig.TEST_SERVER);
+    }
+
     private void verifySnapshotRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records) {
         verifyRecordValues(expectedRecords, records, true);
     }
@@ -394,6 +416,7 @@ public class PartialSnapshotterTest extends BaseTest {
 
     private void verifyRecordValues(Map<String, Map<String, Object>> expectedRecords, List<SourceRecord> records, boolean isSnapshot) {
         for (SourceRecord record : records) {
+            LOGGER.info("Verifying discovered record {}", record);
             Map<String, Object> rowData = expectedRecords.remove(record.topic());
             assertNotNull(rowData);
             for (Map.Entry<String, Object> column : rowData.entrySet()) {
@@ -408,7 +431,7 @@ public class PartialSnapshotterTest extends BaseTest {
                 }
                 else {
                     assertThat(
-                            ((Struct) record.value()).getStruct("source").getString("snapshot"),
+                            (String) ((Struct) record.value()).getStruct("source").get("snapshot"),
                             AnyOf.anyOf(StringContains.containsString("false"))
                     );
                 }

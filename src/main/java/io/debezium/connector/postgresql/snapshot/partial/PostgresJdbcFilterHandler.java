@@ -165,6 +165,7 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
 
     @Override
     public void snapshotCompleted() {
+        LOGGER.info("Snapshot signaled as complete. Unlocking all snapshot records");
         if (jdbcConnection != null) {
             try {
                 Connection connection = jdbcConnection.connection();
