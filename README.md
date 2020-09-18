@@ -1,4 +1,4 @@
-[![Actions Status](https://github.com/grantcooksey/debezium-partial-snapshotter/workflows/ci/badge.svg)](https://github.com/grantcooksey/debezium-partial-snapshotter/actions)
+[![Actions Status](https://github.com/grantcooksey/debezium-partial-snapshotter/workflows/build-master/badge.svg)](https://github.com/grantcooksey/debezium-partial-snapshotter/actions)
 
 # Debezium Partial Snapshots
 
