@@ -1,3 +1,5 @@
+[![Actions Status](https://github.com/grantcooksey/debezium-partial-snapshotter/workflows/ci/badge.svg)](https://github.com/grantcooksey/debezium-partial-snapshotter/actions)
+
 # Debezium Partial Snapshots
 
 Gain fine-grained control over your PostgreSQL snapshots with this plugin! 
