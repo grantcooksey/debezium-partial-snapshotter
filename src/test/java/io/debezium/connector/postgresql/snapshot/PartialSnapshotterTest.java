@@ -14,6 +14,7 @@ import org.hamcrest.core.AnyOf;
 import org.hamcrest.core.StringContains;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,6 +178,7 @@ public class PartialSnapshotterTest extends BaseTest {
     }
 
     @Test
+    @Ignore
     public void testReplayRecordsDuringResnapshot() throws Exception {
         TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
