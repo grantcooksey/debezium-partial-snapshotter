@@ -15,19 +15,19 @@ public class SnapshotFilterManager implements Runnable {
 
     private final LinkedBlockingQueue<SnapshotFilterMessage> requestQueue;
     private final FilterHandler filterHandler;
-    private final SnapshotLifetimeMonitor jmxSnapshotMonitor;
+    private final SnapshotLifetimeMonitor snapshotLifetimeMonitor;
 
     public SnapshotFilterManager(LinkedBlockingQueue<SnapshotFilterMessage> requestQueue, FilterHandler filterHandler,
                                  CommonConnectorConfig config) {
         this.requestQueue = requestQueue;
         this.filterHandler = filterHandler;
 
-        jmxSnapshotMonitor = new SnapshotLifetimeMonitor(config);
+        snapshotLifetimeMonitor = new SnapshotLifetimeMonitor(config);
     }
 
     @Override
     public void run() {
-        jmxSnapshotMonitor.waitForSnapshotToStart();
+        snapshotLifetimeMonitor.waitForSnapshotToStart();
         try {
             while (isSnapshotRunning()) {
                 SnapshotFilterMessage message = pollForRequest();
@@ -61,6 +61,6 @@ public class SnapshotFilterManager implements Runnable {
     }
 
     private boolean isSnapshotRunning() {
-        return !jmxSnapshotMonitor.snapshotIsDone();
+        return !snapshotLifetimeMonitor.snapshotIsDone();
     }
 }

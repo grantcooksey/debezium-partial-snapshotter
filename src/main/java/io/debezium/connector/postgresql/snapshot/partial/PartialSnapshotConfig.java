@@ -19,12 +19,12 @@ public class PartialSnapshotConfig {
     }
 
     public String getTrackerTableName() {
-        String[] dbObjectSplit = split(trackerTableName);
+        String[] dbObjectSplit = explodeDbObjectName(trackerTableName);
         return dbObjectSplit[dbObjectSplit.length - 1];
     }
 
     public String getTackerTableSchemaName() {
-        String[] dbObjectSplit = split(trackerTableName);
+        String[] dbObjectSplit = explodeDbObjectName(trackerTableName);
         return dbObjectSplit.length == 1 ? DEFAULT_TRACKER_TABLE_SCHEMA : dbObjectSplit[0];
     }
 
@@ -62,7 +62,7 @@ public class PartialSnapshotConfig {
                     "whitelist/blacklist is monitoring at least one table.")
             .withDefault("false");
 
-    private String[] split(String dbObjectName) {
+    private String[] explodeDbObjectName(String dbObjectName) {
         return dbObjectName.split("\\.", 2);
     }
 }
