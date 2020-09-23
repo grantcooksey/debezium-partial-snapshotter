@@ -3,12 +3,14 @@ plugins {
     id 'java-library'
 }
 
-test {
-    testLogging.showStandardStreams = false
-}
+apply plugin: 'maven'
+apply plugin: 'signing'
 
+group = "com.github.grantcooksey"
+archivesBaseName = "debezium-partial-snapshotter"
 version = '0.1.0-SNAPSHOT'
 sourceCompatibility = '1.8'
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 repositories {
     mavenLocal()
@@ -38,4 +40,70 @@ dependencies {
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
     testImplementation group: 'org.testcontainers', name: 'postgresql', version: '1.14.1'
     testImplementation group: 'org.apache.kafka', name: 'connect-api', version: '2.4.0'
+}
+
+test {
+    testLogging.showStandardStreams = false
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            pom.project {
+                name 'debezium-partial-snapshotter'
+                packaging 'jar'
+                description 'Custom snapshotter to get fine grain control over db snapshots with Debezium.'
+                url 'https://github.com/grantcooksey/debezium-partial-snapshotter'
+
+                licenses {
+                    license {
+                        name 'MIT License'
+                        url 'https://github.com/grantcooksey/debezium-partial-snapshotter/master/LICENSE'
+                    }
+                }
+
+                scm {
+                    connection 'scm:git:git://github.com/grantcooksey/debezium-partial-snapshotter.git'
+                    developerConnection 'scm:git:ssh://github.com:grantcooksey/debezium-partial-snapshotter.git'
+                    url 'https://github.com/grantcooksey/debezium-partial-snapshotter/tree/master'
+                }
+
+                developers {
+                    developer {
+                        name 'Grant Cooksey'
+                        email 'suitcase24@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+}
+
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
 }
