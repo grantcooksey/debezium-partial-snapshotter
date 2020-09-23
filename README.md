@@ -9,12 +9,9 @@ Problems with managing your evolving Debezium production data?  This plugin was 
 * Decide to add new tables to the whitelist after the initial snapshot but don't want to have to snapshot the entire database again? Avoid resnapshotting everything and skip all or selectively resnapshot a subset of tables.
 * A data migration was performed that breaks Avro schema migration compatibility and a snapshot is  needed for recovery? Once the Kafka topics and Schema Registry have been patched to handle the migration, resnapshot only the affected tables.
 
-## Status
-
-This project is currently under development and not currently ready for production!
 
 ## Requirements
-* Debezium >= 1.3
+The plugin requires the running Debezium connector of a version greater than 1.3.0.Beta2.
 
 ## Configuration
 
@@ -31,7 +28,7 @@ Property							| Default	| Description
 ----- 								| ----- 	| ----
 snapshot.partial.table.name	| public.snapshot_tracker | Name of table used to track snapshot status for each table.
 snapshot.partial.pk.name		| snapshot\_tracker_pk | Name of primary key for the snapshot tracker table.
-snapshot.partial.skip.existing.connector | false | If the partial snapshotter plugin is added to an existing connector, this flag will skip performing a snapshot and instead only create the snapshot tracker table. Assumes the current whitelist/blacklist is monitoring at least one table.
+snapshot.partial.skip.existing.connector | false | If the partial snapshotter plugin is added to an existing connector, this flag will skip performing a snapshot and instead only create the snapshot tracker table. Assumes the current include.list/exclude.list is monitoring at least one table.
 
 The postgres role that Debezium uses must have create table pri
 
@@ -50,7 +47,7 @@ Example connector configuration:
 		"database.server.name": "test",
 		"plugin.name": "pgoutput",
 		"slot.drop.on.stop": "false",
-		"table.blacklist": "public.snapshot_tracker",
+		"table.exclude.list": "public.snapshot_tracker",
 		"snapshot.mode": "custom",
 		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
     }
@@ -92,8 +89,6 @@ This table creation query can be used to precreate the table, with the considera
 
 The snapshotter uses the postgres exported snapshot feature to take a lockless snapshot and queries the table to determine what tables need a snapshot. 
 
-TODO: existing connectors snapshot.
-
 ### Common Scenarios
 
 For all examples, we assume we are running the connector on Kafka Connect and are using the following connector configuration:
@@ -111,7 +106,7 @@ For all examples, we assume we are running the connector on Kafka Connect and ar
 		"database.server.name": "test",
 		"plugin.name": "pgoutput",
 		"slot.drop.on.stop": "false",
-		"table.blacklist": "public.snapshot_tracker",
+		"table.exclude.list": "public.snapshot_tracker",
 		"snapshot.mode": "custom",
 		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter"
     }
@@ -154,7 +149,7 @@ When adding the partial snapshot plugin for an existing connector, it might be d
 		"database.server.name": "test",
 		"plugin.name": "pgoutput",
 		"slot.drop.on.stop": "false",
-		"table.blacklist": "public.snapshot_tracker",
+		"table.exclude.list": "public.snapshot_tracker",
 		"snapshot.mode": "custom",
 		"snapshot.custom.class": "io.debezium.connector.postgresql.snapshot.PartialSnapshotter",
 		"snapshot.partial.skip.existing.connector": "true"

@@ -24,20 +24,24 @@ if (project.findProperty('env') == 'dev') {
     debeziumVersion = prodDebeziumVersion
 }
 
+// Dependent on what version of Kafka that debezium uses. See debezium/pom.xml
+def slf4jVersion = '1.7.28'
+def kafkaVersion = '2.4.0'
+
 dependencies {
-    // Dependent on what version of Kafka tha debezium uses. See debezium/pom.xml
-    compileOnly group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
-    compileOnly group: 'org.apache.kafka', name: 'kafka_2.12', version: '2.4.0'
+    compileOnly group: 'org.slf4j', name:'slf4j-api', version: slf4jVersion
+    compileOnly group: 'org.apache.kafka', name: 'kafka_2.12', version: kafkaVersion
     compileOnly group: 'io.debezium', name: 'debezium-connector-postgres', version: debeziumVersion
 
     testImplementation group: 'junit', name: 'junit', version: '4.12'
     testImplementation group: 'io.debezium', name: 'debezium-api', version: debeziumVersion
     testImplementation group: 'io.debezium', name: 'debezium-connector-postgres', version: debeziumVersion
     testImplementation group: 'io.debezium', name: 'debezium-embedded', version: debeziumVersion
-    testImplementation group: 'org.slf4j', name:'slf4j-api', version:'1.7.28'
+    testImplementation group: 'org.slf4j', name:'slf4j-api', version: slf4jVersion
+    testImplementation group: 'org.apache.kafka', name: 'connect-api', version: kafkaVersion
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
+    testImplementation group: 'org.mockito', name: 'mockito-inline', version: '3.5.11'
     testImplementation group: 'org.testcontainers', name: 'postgresql', version: '1.14.1'
-    testImplementation group: 'org.apache.kafka', name: 'connect-api', version: '2.4.0'
 }
 
 test {

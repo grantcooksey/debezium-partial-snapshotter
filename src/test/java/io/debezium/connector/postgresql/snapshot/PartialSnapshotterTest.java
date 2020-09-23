@@ -178,7 +178,7 @@ public class PartialSnapshotterTest extends BaseTest {
     }
 
     @Test
-    @Ignore
+    @Ignore("Remove after next release after 1.3.0.Beta2 is out")
     public void testReplayRecordsDuringResnapshot() throws Exception {
         TestUtils.execute(postgreSQLContainer, CREATE_TEST_DATA_TABLES,
                 "insert into test_data (id, name) VALUES (1, 'joe');",
