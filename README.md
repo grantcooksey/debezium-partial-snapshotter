@@ -1,4 +1,5 @@
 [![Actions Status](https://github.com/grantcooksey/debezium-partial-snapshotter/workflows/build-master/badge.svg)](https://github.com/grantcooksey/debezium-partial-snapshotter/actions)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.grantcooksey/debezium-partial-snapshotter/badge.svg)](https://search.maven.org/search?q=a:debezium-partial-snapshotter)
 
 # Debezium Partial Snapshots
 
