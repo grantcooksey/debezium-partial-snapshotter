@@ -1,6 +1,9 @@
 package io.debezium.connector.postgresql.snapshot.partial;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.postgresql.snapshot.partial.message.PoisonPillMessage;
+import io.debezium.connector.postgresql.snapshot.partial.message.ShouldSnapshotFilterMessage;
+import io.debezium.connector.postgresql.snapshot.partial.message.SnapshotFilterMessage;
 import io.debezium.relational.TableId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,11 +20,13 @@ public class SnapshotFilter {
     private static final int ONE_SECOND = 1;
 
     private final LinkedBlockingQueue<SnapshotFilterMessage> requestQueue;
+    private final FilterHandler filterHandler;
 
-    public SnapshotFilter(FilterHandler handler, CommonConnectorConfig config) {
-        requestQueue = new LinkedBlockingQueue<>();
+    public SnapshotFilter(FilterHandler filterHandler) {
+        this.requestQueue = new LinkedBlockingQueue<>();
+        this.filterHandler = filterHandler;
 
-        Thread queryWorker = new Thread(new SnapshotFilterManager(requestQueue, handler, config));
+        Thread queryWorker = new Thread(new SnapshotFilterManager(requestQueue));
 
         LOGGER.debug("Starting snapshot filter manager thread");
         queryWorker.start();
@@ -29,7 +34,7 @@ public class SnapshotFilter {
 
     public boolean shouldSnapshotTable(TableId tableId) {
         ArrayBlockingQueue<Boolean> responseQueue = new ArrayBlockingQueue<>(1);
-        SnapshotFilterMessage message = new SnapshotFilterMessage(tableId, responseQueue);
+        SnapshotFilterMessage message = new ShouldSnapshotFilterMessage(tableId, responseQueue, filterHandler);
 
         try {
             requestQueue.put(message);
@@ -49,5 +54,17 @@ public class SnapshotFilter {
 
         LOGGER.warn("Failed to determine whether to not snapshot {}. Performing snapshot by default.", tableId);
         return true;
+    }
+
+    public void close() {
+        LOGGER.info("Sending a request to close the snapshot filter.");
+        try {
+            SnapshotFilterMessage poisonPill = new PoisonPillMessage(filterHandler);
+            requestQueue.put(poisonPill);
+        }
+        catch (InterruptedException e) {
+            LOGGER.error("Interrupted while closing snapshot filter. External resources may not have closed.", e);
+        }
+
     }
 }

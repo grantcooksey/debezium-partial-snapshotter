@@ -163,7 +163,6 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         return false;
     }
 
-    @Override
     public void snapshotCompleted() {
         LOGGER.info("Snapshot signaled as complete. Unlocking all snapshot records");
         if (jdbcConnection != null) {
@@ -185,8 +184,6 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         }
     }
 
-    // TODO look at using a factory to create a handler and using auto closable
-    @Override
     public void cleanUp() {
         try {
             if (jdbcConnection != null) {
@@ -196,6 +193,12 @@ public class PostgresJdbcFilterHandler implements FilterHandler {
         catch (SQLException e) {
             LOGGER.error("Failed to close jdbc connection from partial snapshot thread", e);
         }
+    }
+
+    @Override
+    public void close() {
+        snapshotCompleted();
+        cleanUp();
     }
 
     private boolean createTable(Connection connection) throws SQLException {

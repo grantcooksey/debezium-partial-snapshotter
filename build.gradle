@@ -15,7 +15,7 @@ repositories {
     jcenter()
 }
 
-def prodDebeziumVersion = '1.3.0.Beta2'
+def prodDebeziumVersion = '1.3.0.CR1'
 def devDebeziumVersion = '1.3.0-SNAPSHOT'
 def debeziumVersion
 if (project.findProperty('env') == 'dev') {

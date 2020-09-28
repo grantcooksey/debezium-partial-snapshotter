@@ -1,6 +1,7 @@
 package io.debezium.connector.postgresql.snapshot.partial;
 
-import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.postgresql.snapshot.partial.message.MessageResponse;
+import io.debezium.connector.postgresql.snapshot.partial.message.SnapshotFilterMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,37 +15,19 @@ public class SnapshotFilterManager implements Runnable {
     private static final int ONE_SECOND = 1;
 
     private final LinkedBlockingQueue<SnapshotFilterMessage> requestQueue;
-    private final FilterHandler filterHandler;
-    private final SnapshotLifetimeMonitor snapshotLifetimeMonitor;
 
-    public SnapshotFilterManager(LinkedBlockingQueue<SnapshotFilterMessage> requestQueue, FilterHandler filterHandler,
-                                 CommonConnectorConfig config) {
+    public SnapshotFilterManager(LinkedBlockingQueue<SnapshotFilterMessage> requestQueue) {
         this.requestQueue = requestQueue;
-        this.filterHandler = filterHandler;
-
-        snapshotLifetimeMonitor = new SnapshotLifetimeMonitor(config);
     }
 
     @Override
     public void run() {
-        snapshotLifetimeMonitor.waitForSnapshotToStart();
-        try {
-            while (isSnapshotRunning()) {
-                SnapshotFilterMessage message = pollForRequest();
-
-                if (message != null) {
-                    boolean response = filterHandler.shouldSnapshot(message.tableId);
-                    try {
-                        message.responseQueue.put(response);
-                    } catch (InterruptedException e) {
-                        LOGGER.error("Partial snapshotter response timed out.", e);
-                    }
-                }
+        MessageResponse response = null;
+        while (response == null || response.isFilterActive()) {
+            SnapshotFilterMessage message = pollForRequest();
+            if (message != null) {
+                response = message.handle();
             }
-            filterHandler.snapshotCompleted();
-        }
-        finally {
-            filterHandler.cleanUp();
         }
 
         LOGGER.info("Shutting down snapshot filter thread");
@@ -58,9 +41,5 @@ public class SnapshotFilterManager implements Runnable {
             LOGGER.error("Request polling shouldn't have been interrupted", e);
         }
         return null;
-    }
-
-    private boolean isSnapshotRunning() {
-        return !snapshotLifetimeMonitor.snapshotIsDone();
     }
 }

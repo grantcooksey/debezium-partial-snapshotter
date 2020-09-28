@@ -12,7 +12,7 @@ Problems with managing your evolving Debezium production data?  This plugin was 
 
 
 ## Requirements
-The plugin requires the running Debezium connector of a version greater than 1.3.0.Beta2.
+The plugin requires the running Debezium connector of a version greater than 1.3.0.CR1.
 
 ## Configuration
 

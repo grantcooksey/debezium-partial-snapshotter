@@ -4,6 +4,5 @@ import io.debezium.relational.TableId;
 
 public interface FilterHandler {
     boolean shouldSnapshot(TableId tableId);
-    void snapshotCompleted();
-    void cleanUp();
+    void close();
 }

@@ -18,7 +18,7 @@ public class VersionHelper {
         if (major >= 1 && minor >= 3) {
             // 1.3.0.Beta2 was the first release that supported Snapshotter#shouldStreamEventsStartingFromSnapshot
             if (major == 1 && minor == 3 && explodedVersion.length >= 4 &&
-                ! explodedVersion[3].equals("Final") && ! explodedVersion[3].equals("Beta2")) {
+                ! explodedVersion[3].equals("Final") && ! explodedVersion[3].equals("CR1")) {
                 return false;
             }
             return true;

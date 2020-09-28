@@ -19,17 +19,21 @@ public class PartialSnapshotter extends ExportedSnapshotter {
     private static final Logger LOGGER = LoggerFactory.getLogger(PartialSnapshotter.class);
 
     private SnapshotFilter filter;
+    private int shouldStreamCallCount;
 
     @Override
     public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
         if (VersionHelper.isCurrentVersionCompatibleWithPlugin()) {
             PartialSnapshotConfig partialSnapshotConfig = new PartialSnapshotConfig(config.getConfig());
             FilterHandler handler = new PostgresJdbcFilterHandler(config, partialSnapshotConfig);
-            this.filter = new SnapshotFilter(handler, config);
+            this.filter = new SnapshotFilter(handler);
         } else {
             LOGGER.warn("Current debezium version is not compatible with the partial snapshotter plugin. The " +
-                "version must be 1.3.0-Beta2 or greater. Reverting to use the default 'initial' snapshot");
+                "version must be 1.3.0.CR1 or greater. Reverting to use the default 'initial' snapshot");
         }
+
+        shouldStreamCallCount = 0;
+
         super.init(config, sourceInfo, slotState);
     }
 
@@ -62,5 +66,22 @@ public class PartialSnapshotter extends ExportedSnapshotter {
             return false;
         }
         return super.shouldStreamEventsStartingFromSnapshot();
+    }
+
+    @Override
+    public boolean shouldStream() {
+        // HACK: this function is called during streaming setup and initialization. Tracking call counts here is a
+        // workaround till we can add a proper close handler to the snapshotter.
+        // In the case where this is first time a connector is running and needs to
+        // take an initial snapshot, catch up streaming is skipped and the call count is reduced.
+        if ((super.shouldSnapshot() && shouldStreamCallCount >= 1) || shouldStreamCallCount >= 2) {
+            close();
+        }
+        shouldStreamCallCount += 1;
+        return super.shouldStream();
+    }
+
+    private void close() {
+        filter.close();
     }
 }
