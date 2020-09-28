@@ -36,7 +36,7 @@ public class VersionTest {
     @Test
     public void testFirstAllowedVersion() {
         try (MockedStatic<Module> mockedModule = Mockito.mockStatic(Module.class)) {
-            mockedModule.when(Module::version).thenReturn("1.3.0.Beta2");
+            mockedModule.when(Module::version).thenReturn("1.3.0.CR1");
             Assert.assertTrue(VersionHelper.isCurrentVersionCompatibleWithPlugin());
         }
     }
