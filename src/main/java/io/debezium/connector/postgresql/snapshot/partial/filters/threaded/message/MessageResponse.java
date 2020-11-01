@@ -1,4 +1,4 @@
-package io.debezium.connector.postgresql.snapshot.partial.message;
+package io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message;
 
 public class MessageResponse {
 

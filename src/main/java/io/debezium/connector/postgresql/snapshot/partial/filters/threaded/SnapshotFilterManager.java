@@ -1,7 +1,7 @@
-package io.debezium.connector.postgresql.snapshot.partial;
+package io.debezium.connector.postgresql.snapshot.partial.filters.threaded;
 
-import io.debezium.connector.postgresql.snapshot.partial.message.MessageResponse;
-import io.debezium.connector.postgresql.snapshot.partial.message.SnapshotFilterMessage;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message.MessageResponse;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message.SnapshotFilterMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

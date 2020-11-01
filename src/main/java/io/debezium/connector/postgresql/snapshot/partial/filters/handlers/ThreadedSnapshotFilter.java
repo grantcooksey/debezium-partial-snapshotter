@@ -1,9 +1,10 @@
-package io.debezium.connector.postgresql.snapshot.partial;
+package io.debezium.connector.postgresql.snapshot.partial.filters.handlers;
 
-import io.debezium.config.CommonConnectorConfig;
-import io.debezium.connector.postgresql.snapshot.partial.message.PoisonPillMessage;
-import io.debezium.connector.postgresql.snapshot.partial.message.ShouldSnapshotFilterMessage;
-import io.debezium.connector.postgresql.snapshot.partial.message.SnapshotFilterMessage;
+import io.debezium.connector.postgresql.snapshot.partial.filters.FilterHandler;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.SnapshotFilterManager;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message.PoisonPillMessage;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message.ShouldSnapshotFilterMessage;
+import io.debezium.connector.postgresql.snapshot.partial.filters.threaded.message.SnapshotFilterMessage;
 import io.debezium.relational.TableId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +13,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-public class SnapshotFilter {
+public class ThreadedSnapshotFilter implements FilterHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SnapshotFilter.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ThreadedSnapshotFilter.class);
 
     private static final int MAX_RESPONSE_POLLING_ATTEMPTS = 30;
     private static final int ONE_SECOND = 1;
@@ -22,7 +23,7 @@ public class SnapshotFilter {
     private final LinkedBlockingQueue<SnapshotFilterMessage> requestQueue;
     private final FilterHandler filterHandler;
 
-    public SnapshotFilter(FilterHandler filterHandler) {
+    public ThreadedSnapshotFilter(FilterHandler filterHandler) {
         this.requestQueue = new LinkedBlockingQueue<>();
         this.filterHandler = filterHandler;
 
@@ -32,7 +33,8 @@ public class SnapshotFilter {
         queryWorker.start();
     }
 
-    public boolean shouldSnapshotTable(TableId tableId) {
+    @Override
+    public boolean shouldSnapshot(TableId tableId) {
         ArrayBlockingQueue<Boolean> responseQueue = new ArrayBlockingQueue<>(1);
         SnapshotFilterMessage message = new ShouldSnapshotFilterMessage(tableId, responseQueue, filterHandler);
 
@@ -56,6 +58,7 @@ public class SnapshotFilter {
         return true;
     }
 
+    @Override
     public void close() {
         LOGGER.info("Sending a request to close the snapshot filter.");
         try {

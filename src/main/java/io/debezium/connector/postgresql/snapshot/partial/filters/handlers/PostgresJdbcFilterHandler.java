@@ -1,7 +1,9 @@
-package io.debezium.connector.postgresql.snapshot.partial;
+package io.debezium.connector.postgresql.snapshot.partial.filters.handlers;
 
 import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
+import io.debezium.connector.postgresql.snapshot.partial.PartialSnapshotConfig;
+import io.debezium.connector.postgresql.snapshot.partial.filters.FilterHandler;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.TableId;
 import org.slf4j.Logger;

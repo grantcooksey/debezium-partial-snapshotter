@@ -1,10 +1,10 @@
 package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.connector.postgresql.PostgresConnectorConfig;
-import io.debezium.connector.postgresql.snapshot.partial.FilterHandler;
+import io.debezium.connector.postgresql.snapshot.partial.filters.FilterHandler;
 import io.debezium.connector.postgresql.snapshot.partial.PartialSnapshotConfig;
-import io.debezium.connector.postgresql.snapshot.partial.PostgresJdbcFilterHandler;
-import io.debezium.connector.postgresql.snapshot.partial.SnapshotFilter;
+import io.debezium.connector.postgresql.snapshot.partial.filters.handlers.PostgresJdbcFilterHandler;
+import io.debezium.connector.postgresql.snapshot.partial.filters.handlers.ThreadedSnapshotFilter;
 import io.debezium.connector.postgresql.snapshot.partial.VersionHelper;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotState;
@@ -18,7 +18,7 @@ public class PartialSnapshotter extends ExportedSnapshotter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PartialSnapshotter.class);
 
-    private SnapshotFilter filter;
+    private FilterHandler filter;
     private int shouldStreamCallCount;
 
     @Override
@@ -26,10 +26,10 @@ public class PartialSnapshotter extends ExportedSnapshotter {
         if (VersionHelper.isCurrentVersionCompatibleWithPlugin()) {
             PartialSnapshotConfig partialSnapshotConfig = new PartialSnapshotConfig(config.getConfig());
             FilterHandler handler = new PostgresJdbcFilterHandler(config, partialSnapshotConfig);
-            this.filter = new SnapshotFilter(handler);
+            this.filter = new ThreadedSnapshotFilter(handler);
         } else {
             LOGGER.warn("Current debezium version is not compatible with the partial snapshotter plugin. The " +
-                "version must be 1.3.0.CR1 or greater. Reverting to use the default 'initial' snapshot");
+                "version must be " + VersionHelper.MIN_VERSION + " or greater. Reverting to use the default 'initial' snapshot");
         }
 
         shouldStreamCallCount = 0;
@@ -40,7 +40,7 @@ public class PartialSnapshotter extends ExportedSnapshotter {
     @Override
     public Optional<String> buildSnapshotQuery(TableId tableId) {
         if (VersionHelper.isCurrentVersionCompatibleWithPlugin()) {
-            if (filter.shouldSnapshotTable(tableId)) {
+            if (filter.shouldSnapshot(tableId)) {
                 LOGGER.info("Data collection {} will have a snapshot performed", tableId);
                 return super.buildSnapshotQuery(tableId);
             }
