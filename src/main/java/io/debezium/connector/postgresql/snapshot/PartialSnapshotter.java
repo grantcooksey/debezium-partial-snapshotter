@@ -2,9 +2,6 @@ package io.debezium.connector.postgresql.snapshot;
 
 import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.snapshot.partial.filters.FilterHandler;
-import io.debezium.connector.postgresql.snapshot.partial.PartialSnapshotConfig;
-import io.debezium.connector.postgresql.snapshot.partial.filters.handlers.PostgresJdbcFilterHandler;
-import io.debezium.connector.postgresql.snapshot.partial.filters.handlers.ThreadedSnapshotFilter;
 import io.debezium.connector.postgresql.snapshot.partial.VersionHelper;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotState;
@@ -24,9 +21,7 @@ public class PartialSnapshotter extends ExportedSnapshotter {
     @Override
     public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
         if (VersionHelper.isCurrentVersionCompatibleWithPlugin()) {
-            PartialSnapshotConfig partialSnapshotConfig = new PartialSnapshotConfig(config.getConfig());
-            FilterHandler handler = new PostgresJdbcFilterHandler(config, partialSnapshotConfig);
-            this.filter = new ThreadedSnapshotFilter(handler);
+            this.filter = VersionHelper.getFilterHandlerForVersion(config);
         } else {
             LOGGER.warn("Current debezium version is not compatible with the partial snapshotter plugin. The " +
                 "version must be " + VersionHelper.MIN_VERSION + " or greater. Reverting to use the default 'initial' snapshot");
@@ -81,7 +76,15 @@ public class PartialSnapshotter extends ExportedSnapshotter {
         return super.shouldStream();
     }
 
-    private void close() {
+    // We explicitly leave out the Override annotation so older debezium versions do not fail to compile
+    // Snapshotter#snapshotCompleted was added in 1.4
+    public void snapshotCompleted() {
         filter.close();
+    }
+
+    private void close() {
+        if (VersionHelper.usesDeprecatedThreadedHandler()) {
+            filter.close();
+        }
     }
 }
