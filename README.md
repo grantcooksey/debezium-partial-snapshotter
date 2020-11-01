@@ -159,5 +159,3 @@ When adding the partial snapshot plugin for an existing connector, it might be d
 ```
 
 Restart the connector by `POST`ing the config back to the cluster. The snapshot will skip but the snapshot tracker table will have been created if it does not yet exist and all the `needs_snapshot` columns for the monitored tables will be `false`.
-
-
